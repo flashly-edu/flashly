@@ -43,7 +43,8 @@ const state = {
     lastView: 'decks-view',
     deckOrigin: 'decks-view', // Track for back navigation from deck view
     selectionMode: false,
-    selectedCardIds: new Set()
+    selectedCardIds: new Set(),
+    subjects: [] // New state for subjects
 };
 
 const DEFAULT_TAGS = [
@@ -430,17 +431,22 @@ async function loadTodayView() {
 
     // 3. Streak (Mock logic since we don't have daily activity log easily accessible without complex query)
     // We can check study_logs for distinct days.
+    // 3. Streak & Mastery & Retention using Study Logs
+    // We fetch a reasonable amount of recent logs to calculate these metrics.
     const { data: logs } = await sb.from('study_logs')
-        .select('review_time')
+        .select('review_time, rating')
+        .eq('user_id', state.user.id)
         .order('review_time', { ascending: false })
-        .limit(100);
+        .limit(2000); // Fetch enough history for decent stats
 
     let streak = 0;
+    let totalScore = 0;
+    let totalReviews = 0;
+    let goodEasyCount = 0;
+
     if (logs && logs.length > 0) {
-        // Calculate streak
-        // Simplified: just check if studied today, yesterday, etc.
+        // --- Calculate Streak ---
         const dates = [...new Set(logs.map(l => new Date(l.review_time).toDateString()))];
-        // Check consecutive days backwards from today
         let checkDate = new Date();
         while (true) {
             const checkStr = checkDate.toDateString();
@@ -448,45 +454,148 @@ async function loadTodayView() {
                 streak++;
                 checkDate.setDate(checkDate.getDate() - 1);
             } else {
-                // Allow missing today if it's early? No, strict streak.
-                // If today is missing, but yesterday exists, streak is valid but doesn't include today?
-                // Visual preference: show current streak including today if done, else show streak ending yesterday?
-                // Let's just count consecutive days present in logs.
+                // Check if we missed today but have yesterday (streak still active for yesterday)
                 if (streak === 0 && checkDate.toDateString() === new Date().toDateString()) {
-                    // haven't studied today yet, check yesterday
                     checkDate.setDate(checkDate.getDate() - 1);
                     continue;
                 }
                 break;
             }
         }
+
+        // --- Calculate Stats ---
+        logs.forEach(l => {
+            totalScore += (l.rating || 0);
+            totalReviews++;
+            if (l.rating >= 3) goodEasyCount++;
+        });
     }
     document.getElementById('streak-count').textContent = streak;
 
-    // 4. Retention & Mastery (Mock/Simple Calculation)
-    // Retention = (Good + Easy) / Total Reviews in last 30 days?
-    // Let's use global stats if available, else '--%'
-    document.getElementById('retention-text').textContent = '85%';
-    // Draw donut
-    drawRetentionDonut(85);
+    // --- Mastery Calculation (Matches Group View Logic) ---
+    // Mastery = Average Rating % (Score / MaxPossibleScore)
+    // Max Possible Score = Reviews * 4
+    const mastery = totalReviews > 0 ? Math.round((totalScore / (totalReviews * 4)) * 100) : 0;
 
-    // Mastery: % of cards with interval > 21 days (Mature)
-    // Fetch count of mature cards vs total cards
-    const { count: totalCards } = await sb.from('cards').select('*', { count: 'exact', head: true });
-    const { count: matureCards } = await sb.from('cards').select('*', { count: 'exact', head: true }).gt('interval_days', 21);
-
-    let mastery = 0;
-    if (totalCards > 0) {
-        mastery = Math.round((matureCards / totalCards) * 100);
-    }
     document.getElementById('mastery-percent').textContent = `${mastery}%`;
     document.getElementById('mastery-bar').style.width = `${mastery}%`;
 
     const masteryLabel = document.getElementById('mastery-label');
-    if (mastery < 10) masteryLabel.textContent = 'Novice';
-    else if (mastery < 40) masteryLabel.textContent = 'Apprentice';
-    else if (mastery < 80) masteryLabel.textContent = 'Expert';
-    else masteryLabel.textContent = 'Master';
+    if (masteryLabel) {
+        if (mastery < 10) masteryLabel.textContent = 'Novice';
+        else if (mastery < 40) masteryLabel.textContent = 'Apprentice';
+        else if (mastery < 80) masteryLabel.textContent = 'Expert';
+        else masteryLabel.textContent = 'Master';
+    }
+
+    // --- Retention Calculation (Good+Easy / Total) ---
+    const retention = totalReviews > 0 ? Math.round((goodEasyCount / totalReviews) * 100) : 0;
+    const retentionText = document.getElementById('retention-text');
+    if (retentionText) retentionText.textContent = retention + '%';
+
+    drawRetentionDonut(retention);
+
+
+
+    // 5. Smart Recommendations (Focus Decks)
+    await loadFocusDecks();
+}
+
+async function loadFocusDecks() {
+    // Logic: Find decks with cards due now or soon. Sort by "Urgency" (Earliest Due).
+    // Fetch all cards due <= now
+    // We already have decks in state, let's use that if populated, else fetch.
+    // Ideally we assume loadDecksView might not have run yet if we land on Today.
+    // So let's fetch decks + card counts.
+
+    // Efficient approach:
+    // 1. Fetch decks.
+    // 2. For each deck, count due cards. (Or use a view/RPC, but let's do client-side agg for now if decks < 100)
+
+    const { data: decks } = await sb.from('decks').select('id, title, user_id, subject_id');
+    if (!decks) return;
+
+    const { data: cards } = await sb.from('cards')
+        .select('deck_id, due_at')
+        .lte('due_at', new Date().toISOString());
+
+    const deckStats = {};
+    if (cards) {
+        cards.forEach(c => {
+            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at };
+            deckStats[c.deck_id].count++;
+            if (c.due_at < deckStats[c.deck_id].earliest) deckStats[c.deck_id].earliest = c.due_at;
+        });
+    }
+
+    // Filter decks with due cards
+    const focusDecks = decks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
+
+    // Sort: Earliest due date first, then count desc
+    focusDecks.sort((a, b) => {
+        const statsA = deckStats[a.id];
+        const statsB = deckStats[b.id];
+        if (new Date(statsA.earliest) - new Date(statsB.earliest) !== 0) return new Date(statsA.earliest) - new Date(statsB.earliest);
+        return statsB.count - statsA.count;
+    });
+
+    // Take top 3
+    const top3 = focusDecks.slice(0, 3);
+
+    // Render
+    const container = document.getElementById('today-focus-grid'); // Need to ensure this exists in HTML or index.html
+    // If not exists (it likely doesn't in original), we should check or inject.
+    // Let's assume we might need to add it to HTML. 
+    // Wait, I didn't check `index.html` for `today-focus-grid`. 
+    // Use `today-view` content.
+
+    // Only proceed if we can find a place to put it. 
+    // Existing HTML has a basic layout. Let's append or replace a "Quick Start" section if it exists.
+    // Or simpler: Just log for now if element missing? No, user wants features.
+    // I will use `available-decks-list` if it exists, or create a container.
+    // Actually, looking at `index.html` (mentally), `today-view` usually has stats. 
+    // I'll try to find a suitable container or append to `today-view`.
+
+    let focusContainer = document.getElementById('today-focus-section');
+    if (!focusContainer) {
+        // Create it after options-grid
+        const view = document.getElementById('today-view');
+        focusContainer = document.createElement('div');
+        focusContainer.id = 'today-focus-section';
+        focusContainer.className = 'mt-30';
+        focusContainer.innerHTML = `<h3 class="text-lg font-semibold mb-4">Ready to Learn</h3><div id="today-focus-grid" class="grid-container"></div>`;
+        view.appendChild(focusContainer);
+    }
+
+    const grid = document.getElementById('today-focus-grid');
+    grid.innerHTML = '';
+
+    if (top3.length === 0) {
+        grid.innerHTML = `<p class="text-dim col-span-full">All caught up! Great job.</p>`;
+        return;
+    }
+
+    top3.forEach(deck => {
+        const stats = deckStats[deck.id];
+        const div = document.createElement('div');
+        div.className = 'dashboard-card hover-card';
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-6">
+                <span class="badge badge-due">${stats.count} Due</span>
+            </div>
+            <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
+            <p class="text-sm text-dim mb-4">Next review: Now</p>
+            <button class="btn btn-primary btn-sm w-full">Study Now</button>
+        `;
+        div.onclick = () => {
+            state.currentDeck = deck; // Need full deck obj? We have simplified one. 
+            // Better to fetch full deck or just navigate to deck view then study.
+            // Let's navigate to deck view to be safe.
+            state.lastView = 'today-view'; // Return here?
+            openDeck(deck);
+        };
+        grid.appendChild(div);
+    });
 }
 
 function drawRetentionDonut(percent) {
@@ -557,23 +666,27 @@ async function loadDecksView() {
     }
 
     state.decks = decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
-    renderDecksList();
+    state.decks = decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
+
+    // Fetch Subjects
+    const { data: subjects } = await sb.from('subjects').select('*').order('name');
+    state.subjects = subjects || [];
+
+    renderDecksViewWithSubjects();
 }
 
-function renderDecksList() {
+function renderDecksViewWithSubjects() {
     const list = document.getElementById('deck-list');
     list.innerHTML = '';
 
+    // Create Subject Header + Add Button
+    const headerActions = document.getElementById('create-subject-btn');
+
     if (state.decks.length === 0) {
-        list.innerHTML = `
+        // ... (Empty state logic preserved but simplified for brevity if needed, or re-use existing)
+        list.innerHTML += `
             <div class="empty-state">
-                <div class="empty-icon-bg" style="width: 20px; height: 20px; display: none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="w-8 h-8 text-primary">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-                    </svg>
-                </div>
-                </div>
-                <div style="width: 100%; text-align: center; margin: 200px 0">
+                <div style="width: 100%; text-align: center; margin: 100px 0">
                     <h3>No Decks Yet</h3>
                     <p>Create your first deck to start learning.</p>
                     <button class="btn btn-primary mt-4" onclick="document.getElementById('create-deck-btn').click()">Create Deck</button>
@@ -583,51 +696,271 @@ function renderDecksList() {
         return;
     }
 
-    // Header Row
-    const header = document.createElement('div');
-    header.className = 'deck-list-header'; // Define in CSS: grid layout
-    header.innerHTML = `
-        <span>Title</span>
-        <span>Stats</span>
-        <span class="text-right">Action</span>
-    `;
-    // We should probably just use the row style but bold? Or simple list.
-    // Let's stick to the card style but wide? No, spec said "Notion-style list layout".
-    // So distinct rows.
+    // 1. Render Subjects
+    state.subjects.forEach(subject => {
+        const subjectDecks = state.decks.filter(d => d.subject_id === subject.id);
 
-    state.decks.forEach(deck => {
-        const stats = deck.stats || { total: 0, due: 0 };
-        const row = document.createElement('div');
-        row.className = 'deck-row';
-        row.innerHTML = `
-            <div class="deck-info">
-                <span class="deck-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
-                    </svg>
-                </span>
-                <div class="deck-text">
-                    <div class="deck-title">${escapeHtml(deck.title)}</div>
-                    <div class="deck-meta">${stats.total} cards • ${deck.is_public ? 'Public' : 'Private'}</div>
+        const subjectSection = document.createElement('div');
+        subjectSection.className = 'subject-section';
+        subjectSection.innerHTML = `
+            <div class="subject-header">
+                <div class="subject-title-group">
+                    <button class="btn-icon-only-sm" onclick="toggleSubject('${subject.id}')">
+                        <svg id="chevron-${subject.id}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-sm transition-transform">
+                            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                    <span class="subject-name">${escapeHtml(subject.name)}</span>
+                    <span class="subject-count">${subjectDecks.length}</span>
+                </div>
+                <div class="subject-actions">
+                     <button class="btn-icon-only-sm context-trigger" onclick="openSubjectContext(event, '${subject.id}')">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                        </svg>
+                    </button>
                 </div>
             </div>
-            <div class="deck-status">
-                ${stats.due > 0 ? `<span class="badge badge-due">${stats.due} Due</span>` : `<span class="badge badge-success">All Done</span>`}
-            </div>
-            <div class="deck-actions-cell">
-                <button class="btn btn-icon-only">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                    </svg>
-                </button>
+            <div id="subject-content-${subject.id}" class="subject-content">
+                <!-- Decks go here -->
             </div>
         `;
-        row.onclick = () => {
-            state.lastView = 'decks-view'; // Or 'decks-view' if we kept that name
-            openDeck(deck);
-        };
-        list.appendChild(row);
+        list.appendChild(subjectSection);
+
+        const contentDiv = subjectSection.querySelector(`#subject-content-${subject.id}`);
+        if (subjectDecks.length > 0) {
+            subjectDecks.forEach(deck => renderDeckRow(deck, contentDiv));
+        } else {
+            contentDiv.innerHTML = `<div class="empty-subject-placeholder">No decks in this subject</div>`;
+        }
     });
+
+    // 2. Render Uncategorized Decks
+    const uncategorized = state.decks.filter(d => !d.subject_id);
+    if (uncategorized.length > 0) {
+        const uncategorizedSection = document.createElement('div');
+        uncategorizedSection.className = 'subject-section'; // Reuse style or specialized one
+        uncategorizedSection.innerHTML = `
+             <div class="subject-header">
+                <span class="subject-name" style="margin-left: 2rem;">Uncategorized</span>
+                <span class="subject-count">${uncategorized.length}</span>
+            </div>
+            <div class="subject-content"></div>
+        `;
+        list.appendChild(uncategorizedSection);
+        const contentDiv = uncategorizedSection.querySelector('.subject-content');
+        uncategorized.forEach(deck => renderDeckRow(deck, contentDiv));
+    }
+}
+
+function renderDeckRow(deck, container) {
+    const stats = deck.stats || { total: 0, due: 0 };
+    const row = document.createElement('div');
+    row.className = 'deck-row';
+    row.innerHTML = `
+        <div class="deck-info">
+            <span class="deck-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                </svg>
+            </span>
+            <div class="deck-text">
+                <div class="deck-title">${escapeHtml(deck.title)}</div>
+                <div class="deck-meta">${stats.total} cards • ${deck.is_public ? 'Public' : 'Private'}</div>
+            </div>
+        </div>
+        <div class="deck-status">
+            ${stats.due > 0 ? `<span class="badge badge-due">${stats.due} Due</span>` : `<span class="badge badge-success">All Done</span>`}
+        </div>
+        <div class="deck-actions-cell" onclick="event.stopPropagation()">
+            <button class="btn btn-icon-only context-trigger" onclick="openDeckContext(event, '${deck.id}')" style="width: 24px; height: 24px; padding: 0;">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
+            </button>
+        </div>
+    `;
+    row.onclick = () => {
+        state.lastView = 'decks-view';
+        openDeck(deck);
+    };
+    container.appendChild(row);
+}
+
+// Subject Actions
+window.createSubject = () => {
+    document.getElementById('new-subject-name').value = '';
+    openModal('create-subject-modal');
+};
+
+document.getElementById('create-subject-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('new-subject-name').value;
+    const { error } = await sb.from('subjects').insert([{ user_id: state.user.id, name }]);
+    if (error) showToast(error.message, 'error');
+    else {
+        showToast('Subject created');
+        closeModal();
+        loadDecksView();
+    }
+});
+
+window.toggleSubject = (id) => {
+    const content = document.getElementById(`subject-content-${id}`);
+    const chevron = document.getElementById(`chevron-${id}`);
+    if (content) {
+        content.classList.toggle('hidden');
+        if (chevron) {
+            chevron.style.transform = content.classList.contains('hidden') ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+    }
+}
+
+// Context Menu Logic
+window.openDeckContext = (e, deckId) => {
+    e.stopPropagation();
+    const deck = state.decks.find(d => d.id === deckId);
+    if (!deck) return;
+
+    const options = [
+        { label: 'Study', action: () => { state.currentDeck = deck; state.studySessionConfig = { type: 'standard' }; startStudySession(); } },
+        { label: 'Edit', action: () => openDeck(deck) },
+        { label: 'Rename', action: () => renameDeck(deck) },
+        { label: 'Move to Subject', action: () => moveDeckToSubject(deck) },
+        { label: 'Delete', danger: true, action: () => deleteDeckQuick(deck) }
+    ];
+    renderContextMenu(e.clientX, e.clientY, options);
+};
+
+window.openSubjectContext = (e, subjectId) => {
+    e.stopPropagation();
+    const subject = state.subjects.find(s => s.id === subjectId);
+    if (!subject) return;
+
+    const options = [
+        { label: 'Rename', action: () => renameSubject(subject) },
+        { label: 'Delete', danger: true, action: () => deleteSubject(subject) }
+    ];
+    renderContextMenu(e.clientX, e.clientY, options);
+};
+
+function renderContextMenu(x, y, options) {
+    // Remove existing
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.style.top = `${y}px`;
+    menu.style.left = `${x}px`;
+
+    options.forEach(opt => {
+        const item = document.createElement('div');
+        item.className = `context-menu-item ${opt.danger ? 'text-danger' : ''}`;
+        item.textContent = opt.label;
+        item.onclick = () => {
+            opt.action();
+            menu.remove();
+        };
+        menu.appendChild(item);
+    });
+
+    document.body.appendChild(menu);
+
+    // Adjust if offscreen
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 10}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 10}px`;
+
+    // Close on click outside
+    setTimeout(() => {
+        const closeListener = () => {
+            menu.remove();
+            document.removeEventListener('click', closeListener);
+        };
+        document.addEventListener('click', closeListener);
+    }, 100);
+}
+
+function moveDeckToSubject(deck) {
+    // Populate select
+    const select = document.getElementById('move-deck-subject-select');
+    select.innerHTML = '<option value="">Uncategorized</option>';
+    state.subjects.forEach(s => {
+        const option = document.createElement('option');
+        option.value = s.id;
+        option.textContent = s.name;
+        if (deck.subject_id === s.id) option.selected = true;
+        select.appendChild(option);
+    });
+
+    document.getElementById('move-deck-id').value = deck.id;
+    openModal('move-deck-modal');
+}
+
+document.getElementById('move-deck-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const deckId = document.getElementById('move-deck-id').value;
+    const subjectId = document.getElementById('move-deck-subject-select').value || null;
+
+    const { error } = await sb.from('decks').update({ subject_id: subjectId }).eq('id', deckId);
+    if (error) showToast(error.message, 'error');
+    else {
+        showToast('Deck moved');
+        closeModal();
+        loadDecksView();
+    }
+});
+
+async function deleteDeckQuick(deck) {
+    if (confirm(`Delete "${deck.title}"?`)) {
+        await sb.from('decks').delete().eq('id', deck.id);
+        loadDecksView();
+    }
+}
+
+window.renameSubject = (subject) => {
+    document.getElementById('rename-modal-title').textContent = 'Rename Subject';
+    document.getElementById('rename-item-id').value = subject.id;
+    document.getElementById('rename-item-type').value = 'subject';
+    document.getElementById('rename-input').value = subject.name;
+    openModal('rename-modal');
+};
+
+window.renameDeck = (deck) => {
+    document.getElementById('rename-modal-title').textContent = 'Rename Deck';
+    document.getElementById('rename-item-id').value = deck.id;
+    document.getElementById('rename-item-type').value = 'deck';
+    document.getElementById('rename-input').value = deck.title;
+    openModal('rename-modal');
+}
+
+document.getElementById('rename-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('rename-item-id').value;
+    const type = document.getElementById('rename-item-type').value;
+    const name = document.getElementById('rename-input').value.trim();
+
+    if (!name) return;
+
+    if (type === 'subject') {
+        const { error } = await sb.from('subjects').update({ name }).eq('id', id);
+        if (error) showToast(error.message, 'error');
+        else { showToast('Subject renamed'); loadDecksView(); }
+    } else if (type === 'deck') {
+        const { error } = await sb.from('decks').update({ title: name }).eq('id', id);
+        if (error) showToast(error.message, 'error');
+        else { showToast('Deck renamed'); loadDecksView(); }
+    }
+    closeModal();
+});
+
+async function deleteSubject(subject) {
+    if (confirm(`Delete subject "${subject.name}"? Decks will be uncategorized.`)) {
+        await sb.from('subjects').delete().eq('id', subject.id);
+        loadDecksView();
+    }
+
 }
 
 // --- Insights View ---
@@ -787,9 +1120,7 @@ async function openDeck(deck) {
     state.currentDeck = deck;
     document.getElementById('current-deck-title').textContent = deck.title;
 
-    const masteryTag = document.getElementById('deck-mastery-tag');
     const publicBadge = document.getElementById('deck-public-badge');
-    const toggleBtn = document.getElementById('toggle-public-btn');
 
     if (deck.is_public) {
         publicBadge.classList.remove('hidden');
@@ -803,56 +1134,45 @@ async function openDeck(deck) {
     const stats = deck.stats || { total: 0, due: 0, mature: 0 };
     const mastery = stats.total > 0 ? Math.round((stats.mature / stats.total) * 100) : 0;
 
-    document.getElementById('deck-mastery-tag').textContent = `${mastery}% Mastery`;
-    document.getElementById('deck-due-count').textContent = stats.due;
-    document.getElementById('deck-total-count').textContent = stats.total;
+    const masteryTag = document.getElementById('deck-mastery-tag');
+    if (masteryTag) masteryTag.textContent = `${mastery}% Mastery`;
+
+    const barFill = document.getElementById('deck-mastery-bar-fill');
+    if (barFill) barFill.style.width = `${mastery}%`;
+
+    const dueEl = document.getElementById('deck-due-count');
+    if (dueEl) dueEl.textContent = stats.due;
+
+    const totalEl = document.getElementById('deck-total-count');
+    if (totalEl) totalEl.textContent = stats.total;
 
     // UI Robustness: Toggle visibility of editor-only features
     const isOwner = state.user && deck.user_id === state.user.id;
 
-    // Header Actions Visibility
-    // 1. "Public" toggle and "Delete" button are in .header-actions (bottom row)
-    const headerActions = document.querySelector('.deck-sub-actions');
-    if (headerActions) headerActions.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'flex' : 'none';
+    // Header Actions Visibility (Utility Icons)
+    const utilityActions = document.querySelector('.deck-utility-actions');
+    if (utilityActions) utilityActions.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'flex' : 'none';
 
     // Update Share button
     const shareBtn = document.getElementById('toggle-public-btn');
-    shareBtn.onclick = () => openShareModal(deck);
+    if (shareBtn) shareBtn.onclick = () => openShareModal(deck);
+
+    // Settings Button
+    const settingsBtn = document.getElementById('deck-settings-btn');
+    if (settingsBtn) {
+        settingsBtn.onclick = () => {
+            // For now, re-use create-deck-modal for editing if possible or just rename
+            renameDeck(deck);
+        };
+    }
+
+    // Delete Button
+    const deleteBtn = document.getElementById('delete-deck-btn');
+    // onclick already set globally, but better to ensure here? 
+    // The global listener uses state.currentDeck, which we just set. So it's fine.
 
     // Split button dropdown logic (simple alert for now or placeholder)
-    const dropdownBtn = document.getElementById('add-card-dropdown-toggle');
-    const dropdownMenu = document.getElementById('add-card-menu');
 
-    if (dropdownBtn && dropdownMenu) {
-        dropdownBtn.onclick = (e) => {
-            e.stopPropagation();
-            dropdownMenu.classList.toggle('hidden');
-        };
-
-        const bulkAddBtn = document.getElementById('menu-bulk-add');
-        if (bulkAddBtn) {
-            bulkAddBtn.onclick = (e) => {
-                e.stopPropagation();
-                dropdownMenu.classList.add('hidden');
-                openModal('bulk-add-modal');
-            };
-        }
-
-        const importCsvBtn = document.getElementById('menu-import-csv');
-        if (importCsvBtn) {
-            importCsvBtn.onclick = (e) => {
-                e.stopPropagation();
-                dropdownMenu.classList.add('hidden');
-                const csvInput = document.getElementById('csv-upload');
-                if (csvInput) csvInput.click();
-            };
-        }
-
-        // Close dropdown when clicking outside
-        const closeDropdown = () => dropdownMenu.classList.add('hidden');
-        document.removeEventListener('click', closeDropdown);
-        document.addEventListener('click', closeDropdown);
-    }
 
     // 2. "Add Card" button handling (now in import-section)
     const addCardBtn = document.getElementById('add-card-btn');
@@ -1633,8 +1953,48 @@ async function openGroup(group) {
     // So anyone can create.
     document.getElementById('create-group-deck-btn').style.display = 'block';
 
+    // Admin Controls
+    const adminPanel = document.getElementById('group-admin-panel'); // We might need to create this in HTML or inject
+    if (state.isGroupAdmin) {
+        // Show delete group button?
+        if (!document.getElementById('delete-group-btn')) {
+            const btn = document.createElement('button');
+            btn.id = 'delete-group-btn';
+            btn.className = 'btn btn-danger-outline btn-sm';
+            btn.textContent = 'Delete Group';
+            btn.onclick = () => deleteGroup(group.id);
+            document.querySelector('#group-detail-view .header-actions').appendChild(btn); // Assuming structure
+        }
+    } else {
+        const btn = document.getElementById('delete-group-btn');
+        if (btn) btn.remove();
+    }
+
     switchView('group-detail-view');
     loadGroupDetails(group.id);
+}
+
+async function deleteGroup(groupId) {
+    if (confirm('Are you sure you want to delete this group? All decks will be deleted.')) {
+        const { error } = await sb.from('groups').delete().eq('id', groupId);
+        if (error) showToast(error.message, 'error');
+        else {
+            showToast('Group deleted');
+            switchView('groups-view');
+            loadGroups();
+        }
+    }
+}
+
+async function kickMember(userId, groupId) {
+    if (confirm('Kick this member?')) {
+        const { error } = await sb.from('group_members').delete().eq('user_id', userId).eq('group_id', groupId);
+        if (error) showToast(error.message, 'error');
+        else {
+            showToast('Member kicked');
+            loadGroupDetails(groupId);
+        }
+    }
 }
 
 document.getElementById('back-to-groups-btn').onclick = () => {
@@ -1765,6 +2125,13 @@ function renderGroupMembers() {
             </div>
             <div class="member-role">
                 <span class="badge ${m.role === 'admin' ? 'badge-primary' : 'badge-outline'}">${m.role}</span>
+                ${state.isGroupAdmin && m.user_id !== state.user.id ? `
+                    <button class="btn btn-text btn-sm text-danger" onclick="kickMember('${m.user_id}', '${state.currentGroup.id}')" title="Kick Member">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+                ` : ''}
             </div>
         `;
         list.appendChild(li);
@@ -2304,7 +2671,6 @@ async function updateShareUI() {
             <div class="font-semibold">Owner</div>
             <div class="text-xs text-dim">${escapeHtml(state.user.email)}</div>
         </div>
-        <span class="text-sm text-dim italic">Owner</span>
     `;
     list.appendChild(ownerLi);
 
@@ -2414,3 +2780,44 @@ document.getElementById('bulk-add-form').addEventListener('submit', async (e) =>
 
 
 checkUser();
+// --- Add Card Dropdown Global Setup ---
+(function setupAddCardDropdown() {
+    const dropdownBtn = document.getElementById('add-card-dropdown-toggle');
+    const dropdownMenu = document.getElementById('add-card-menu');
+    
+    if (dropdownBtn && dropdownMenu) {
+        dropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdownMenu.classList.toggle('hidden');
+        });
+
+        // Close on click outside
+        document.addEventListener('click', () => {
+             if (!dropdownMenu.classList.contains('hidden')) {
+                 dropdownMenu.classList.add('hidden');
+             }
+        });
+
+        // Prevent menu clicks from closing immediately (unless button logic handles it)
+        dropdownMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
+    const bulkAddBtn = document.getElementById('menu-bulk-add');
+    if (bulkAddBtn) {
+        bulkAddBtn.addEventListener('click', () => {
+            if (dropdownMenu) dropdownMenu.classList.add('hidden');
+            openModal('bulk-add-modal');
+        });
+    }
+
+    const importCsvBtn = document.getElementById('menu-import-csv');
+    if (importCsvBtn) {
+        importCsvBtn.addEventListener('click', () => {
+             if (dropdownMenu) dropdownMenu.classList.add('hidden');
+             const csvInput = document.getElementById('csv-upload');
+             if (csvInput) csvInput.click();
+        });
+    }
+})();
