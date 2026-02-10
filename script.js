@@ -42,6 +42,7 @@ const state = {
     savedDecks: [],
     lastView: 'decks-view',
     deckOrigin: 'decks-view', // Track for back navigation from deck view
+    studyOrigin: null, // Track for back navigation from study view
     selectionMode: false,
     selectedCardIds: new Set(),
     subjects: [] // New state for subjects
@@ -213,35 +214,56 @@ function showApp() {
     loadTags(); // Pre-load tags
     loadTodayView(); // New Homepage
     fetchUserProfile(); // Fetch custom username
-    handleInviteLink(); // Check for ?join= code
+    handleDeepLinks(); // Check for ?join= or ?deck= codes
 
     // Set active nav
     updateNav('nav-today');
 }
 
-async function handleInviteLink() {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get('join');
-    if (!code || !state.user) return;
+async function handleDeepLinks() {
+    if (!state.user) return;
+    const url = new URL(window.location.href);
+    let dirty = false;
 
-    // Remove code from URL without refreshing
-    const cleanUrl = window.location.href.split('?')[0];
-    window.history.replaceState({}, document.title, cleanUrl);
+    // --- 1. Handle Join Code ---
+    const joinCode = url.searchParams.get('join');
+    if (joinCode) {
+        url.searchParams.delete('join');
+        dirty = true;
 
-    // 1. Find group
-    const { data: group } = await sb.from('groups').select('id, name').eq('invite_code', code).maybeSingle();
-    if (!group) return showToast('Invalid Invite Link', 'error');
+        const { data: group } = await sb.from('groups').select('id, name').eq('invite_code', joinCode).maybeSingle();
+        if (!group) {
+            showToast('Invalid Invite Link', 'error');
+        } else {
+            const { error } = await sb.from('group_members').insert([{ group_id: group.id, user_id: state.user.id }]);
+            if (error) {
+                if (error.code === '23505') showToast(`Already in ${group.name}`, 'info');
+                else showToast(error.message, 'error');
+            } else {
+                showToast(`Joined ${group.name}!`, 'success');
+                updateNav('nav-groups');
+                switchView('groups-view');
+                loadGroups();
+            }
+        }
+    }
 
-    // 2. Insert member
-    const { error } = await sb.from('group_members').insert([{ group_id: group.id, user_id: state.user.id }]);
-    if (error) {
-        if (error.code === '23505') showToast(`Already in ${group.name}`, 'info');
-        else showToast(error.message, 'error');
-    } else {
-        showToast(`Joined ${group.name}!`, 'success');
-        updateNav('nav-groups');
-        switchView('groups-view');
-        loadGroups();
+    // --- 2. Handle Deck Link ---
+    const deckId = url.searchParams.get('deck');
+    if (deckId) {
+        url.searchParams.delete('deck');
+        dirty = true;
+
+        const { data: deck, error } = await sb.from('decks').select('*').eq('id', deckId).maybeSingle();
+        if (error || !deck) {
+            showToast('Deck not found or unavailable', 'error');
+        } else {
+            openDeck(deck);
+        }
+    }
+
+    if (dirty) {
+        window.history.replaceState({}, document.title, url.toString());
     }
 }
 
@@ -648,7 +670,26 @@ async function loadDecksView() {
 
     // Fetch stats for decks
     const stats = {};
-    const { data: cards } = await sb.from('cards').select('deck_id, due_at, interval_days');
+    const { data: cards } = await sb.from('cards').select('id, deck_id, due_at, interval_days');
+
+    // Fetch logs to calculate mastery (Last rating Good/Easy)
+    const { data: logs } = await sb.from('study_logs')
+        .select('card_id, rating')
+        .eq('user_id', state.user.id)
+        .order('review_time', { ascending: false })
+        .limit(5000);
+
+    const cardMastery = new Map();
+    if (logs) {
+        const seen = new Set();
+        logs.forEach(log => {
+            if (!seen.has(log.card_id)) {
+                seen.add(log.card_id);
+                // Mastery = Last rating was Good (3) or Easy (4)
+                if (log.rating >= 3) cardMastery.set(log.card_id, true);
+            }
+        });
+    }
 
     const now = new Date();
     if (cards) {
@@ -661,7 +702,8 @@ async function loadDecksView() {
 
             if (interval === 0) stats[card.deck_id].new++;
             if (interval > 0 && (due && due <= now)) stats[card.deck_id].due++;
-            if (interval > 21) stats[card.deck_id].mature++;
+            // Mastery Check
+            if (cardMastery.get(card.id)) stats[card.deck_id].mature++;
         });
     }
 
@@ -1687,6 +1729,9 @@ document.getElementById('fullscreen-study-btn').onclick = () => {
 // --- Study Logic ---
 
 async function startStudySession() {
+    // Capture origin
+    state.studyOrigin = state.lastView;
+
     // 1. Fetch ALL cards (cached in state.cards) or need fetch if we are in 'global' custom study?
     // For now, assume custom study is filtered on CURRENT DECK or ALL DECKS. 
     // Implementation Plan said "Temporary study queues".
@@ -1841,13 +1886,22 @@ function finishStudySession() {
     switchView('study-summary-view');
     document.getElementById('summary-count').textContent = state.studyQueue.length;
 }
-document.getElementById('back-to-deck-btn').addEventListener('click', () => {
-    // If we came from dashboard custom study, go there. If deck, go deck.
-    // Simplification: Go Dashboard
-    switchView('decks-view');
-    loadDecksView();
-});
-document.getElementById('quit-study-btn').addEventListener('click', () => switchView('decks-view'));
+function exitStudyMode() {
+    const target = state.studyOrigin || 'decks-view';
+
+    if (target === 'deck-view' && state.currentDeck) {
+        openDeck(state.currentDeck);
+    } else if (target === 'today-view') {
+        switchView('today-view');
+        loadTodayView();
+    } else {
+        switchView('decks-view');
+        loadDecksView();
+    }
+}
+
+document.getElementById('back-to-deck-btn').addEventListener('click', exitStudyMode);
+document.getElementById('quit-study-btn').addEventListener('click', exitStudyMode);
 
 // --- GROUPS LOGIC ---
 
@@ -2784,7 +2838,7 @@ checkUser();
 (function setupAddCardDropdown() {
     const dropdownBtn = document.getElementById('add-card-dropdown-toggle');
     const dropdownMenu = document.getElementById('add-card-menu');
-    
+
     if (dropdownBtn && dropdownMenu) {
         dropdownBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -2793,9 +2847,9 @@ checkUser();
 
         // Close on click outside
         document.addEventListener('click', () => {
-             if (!dropdownMenu.classList.contains('hidden')) {
-                 dropdownMenu.classList.add('hidden');
-             }
+            if (!dropdownMenu.classList.contains('hidden')) {
+                dropdownMenu.classList.add('hidden');
+            }
         });
 
         // Prevent menu clicks from closing immediately (unless button logic handles it)
@@ -2815,9 +2869,9 @@ checkUser();
     const importCsvBtn = document.getElementById('menu-import-csv');
     if (importCsvBtn) {
         importCsvBtn.addEventListener('click', () => {
-             if (dropdownMenu) dropdownMenu.classList.add('hidden');
-             const csvInput = document.getElementById('csv-upload');
-             if (csvInput) csvInput.click();
+            if (dropdownMenu) dropdownMenu.classList.add('hidden');
+            const csvInput = document.getElementById('csv-upload');
+            if (csvInput) csvInput.click();
         });
     }
 })();

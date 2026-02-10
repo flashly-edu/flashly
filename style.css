@@ -27,6 +27,7 @@
     --danger: #ef4444;
     --success: #22c55e;
     --warning: #f59e0b;
+    --accent: #fb923c;
 
     /* Spacing & Layout */
     --sidebar-width: 260px;
@@ -1908,11 +1909,12 @@ body {
 }
 
 .btn-rate {
-    padding: 1rem 0.5rem;
+    padding: 2rem 0.5rem;
     display: flex;
     flex-direction: column;
     background: var(--surface);
     border: 1px solid var(--border);
+    border-radius: var(--radius);
 }
 
 .btn-rate:hover {
