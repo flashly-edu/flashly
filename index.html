@@ -139,6 +139,10 @@
             <footer class="landing-footer">
                 <div class="footer-container">
                     <p>&copy; 2026 Flashly. Built for focused learners.</p>
+                    <div class="footer-links">
+                        <a href="privacy/index.html">Privacy</a>
+                        <a href="support/index.html">Support</a>
+                    </div>
                 </div>
             </footer>
         </section>
@@ -266,7 +270,8 @@
                                     <div class="progress-bar">
                                         <div class="progress-fill" id="mastery-bar" style="width: 0%"></div>
                                     </div>
-                                    <p class="text-lg font-bold text-secondary mt-3" style="margin-top: 10px;" id="mastery-label">Beginner</p>
+                                    <p class="text-lg font-bold text-secondary mt-3" style="margin-top: 10px;"
+                                        id="mastery-label">Beginner</p>
                                 </div>
                             </div>
                         </div>
@@ -424,7 +429,7 @@
 
                     <section id="group-detail-view" class="view hidden">
                         <div class="section-header group-detail-header"
-                            style="background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%); padding: 2rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 2rem;">
+                            style="background: var(--background); padding: 2rem; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 2rem;">
                             <div style="flex: 1;">
                                 <button id="back-to-groups-btn" class="btn btn-text btn-sm"
                                     style="margin-bottom: 0.5rem; padding-left: 0;">
@@ -495,7 +500,8 @@
                             <div class="deck-header card-style">
                                 <div class="deck-header-top-row">
                                     <div class="deck-title-group">
-                                        <button class="btn-icon-only" id="back-to-dashboard" title="Back">
+                                        <button class="btn-icon-only" id="back-to-dashboard" title="Back"
+                                            style="display: flex; align-self: flex-start; justify-self: flex-start;">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                                 stroke-width="2" stroke="currentColor" class="icon-md">
                                                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -864,30 +870,283 @@
         </div>
 
         <!-- Settings Modal -->
-        <div id="settings-modal" class="modal hidden">
-            <h3>Settings</h3>
-            <form id="settings-form">
-                <div class="input-group">
-                    <label>Username</label>
-                    <input type="text" id="settings-username" required>
+        <div id="settings-modal" class="modal hidden"
+            style="max-width: 850px; width: 95%; padding: 0; overflow: hidden; display: flex; flex-direction: row; height: 600px; max-height: 90vh;">
+            <!-- Settings Sidebar -->
+            <div class="settings-sidebar"
+                style="width: 240px; background: var(--background); border-right: 1px solid var(--border); padding: 1.5rem 0; display: flex; flex-direction: column;">
+                <div
+                    style="padding: 0 1.5rem 1.25rem 1.5rem; font-size: 0.75rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">
+                    User Settings</div>
+                <nav class="settings-nav">
+                    <button class="settings-tab-btn active" data-tab="settings-account">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                        Account
+                    </button>
+                    <button class="settings-tab-btn" data-tab="settings-appearance">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 003.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
+                        </svg>
+                        Appearance
+                    </button>
+                    <button class="settings-tab-btn" data-tab="settings-study">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                        Study Preferences
+                    </button>
+                    <button class="settings-tab-btn" data-tab="settings-stats">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                        </svg>
+                        Learning Stats
+                    </button>
+                    <button class="settings-tab-btn" data-tab="settings-about">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                        </svg>
+                        About Flashly
+                    </button>
+                </nav>
+                <div style="flex: 1;"></div>
+                <div style="padding: 1.5rem; border-top: 1px solid var(--border);">
+                    <button id="logout-btn" class="btn btn-text btn-sm btn-full text-danger"
+                        style="justify-content: flex-start; padding: 0.75rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
+                        Log Out
+                    </button>
                 </div>
-                <!-- Future: Avatar, etc. -->
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal" style="display: none;">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+
+            <!-- Settings Content -->
+            <div class="settings-main"
+                style="flex: 1; padding: 2.5rem; overflow-y: auto; background: var(--surface); position: relative;">
+                <button class="btn-icon-only close-modal" style="position: absolute; top: 1.5rem; right: 1.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor" class="icon-sm">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
+                <!-- Account Tab -->
+                <div id="settings-account" class="settings-tab-view">
+                    <h2 class="text-xl font-bold mb-6">Account</h2>
+
+                    <div class="profile-header mb-8" style="display: flex; align-items: center; gap: 1.5rem;">
+                        <div id="settings-profile-avatar" class="avatar-large"
+                            style="width: 80px; height: 80px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; border: 4px solid var(--surface); box-shadow: var(--shadow-sm);">
+                            U
+                        </div>
+                        <div class="profile-info">
+                            <h3 id="settings-display-name" class="text-lg font-semibold" style="margin: 0;">Username
+                            </h3>
+                            <p id="settings-display-email" class="text-secondary text-sm" style="margin: 0;">
+                                user@example.com</p>
+                        </div>
+                    </div>
+
+                    <form id="settings-form">
+                        <div class="input-group mb-4">
+                            <label
+                                class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Username</label>
+                            <input type="text" id="settings-username" required placeholder="Enter your username">
+                        </div>
+
+                        <div class="input-group mb-6">
+                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Email
+                                Address</label>
+                            <input type="email" id="settings-email-readonly" readonly
+                                style="background: var(--background); cursor: not-allowed; color: var(--text-tertiary);">
+                            <p class="text-xs text-secondary mt-2">Email cannot be changed yet.</p>
+                        </div>
+
+                        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
                 </div>
-            </form>
-            <h3>Danger Zone</h3>
-            <button id="logout-btn" class="btn btn-text btn-sm justify-start text-danger"
-                style="color: var(--danger); padding-left: 0 20px;">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    class="icon-sm">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-                Log Out
-            </button>
+
+                <!-- Appearance Tab -->
+                <div id="settings-appearance" class="settings-tab-view hidden">
+                    <h2 class="text-xl font-bold mb-6">Appearance</h2>
+
+                    <div class="settings-section mb-8">
+                        <label
+                            class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Theme</label>
+                        <div class="theme-options-grid"
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="theme-option active" data-theme="light"
+                                style="border: 2px solid var(--primary); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: var(--surface);">
+                                <div
+                                    style="height: 40px; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
+                                </div>
+                                <span class="text-sm font-medium">Light</span>
+                            </div>
+                            <div class="theme-option" data-theme="dark"
+                                style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #1e293b; color: #f8fafc;">
+                                <div
+                                    style="height: 40px; background: #0f172a; border-radius: 4px; border: 1px solid #334155; margin-bottom: 0.5rem;">
+                                </div>
+                                <span class="text-sm font-medium">Dark</span>
+                            </div>
+                            <div class="theme-option" data-theme="system"
+                                style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #fff;">
+                                <div
+                                    style="height: 40px; background: linear-gradient(135deg, #f8fafc 50%, #0f172a 50%); border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
+                                </div>
+                                <span class="text-sm font-medium">System</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Interface
+                            Preferences</label>
+                        <div class="toggle-group" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 class="text-sm font-medium">Reduced Motion</h4>
+                                    <p class="text-xs text-secondary">Disable card flip animations</p>
+                                </div>
+                                <input type="checkbox" id="settings-reduced-motion" class="toggle-switch">
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 class="text-sm font-medium">Compact Sidebar</h4>
+                                    <p class="text-xs text-secondary">Hide labels in the side navigation</p>
+                                </div>
+                                <input type="checkbox" id="settings-compact-sidebar" class="toggle-switch">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Study Tab -->
+                <div id="settings-study" class="settings-tab-view hidden">
+                    <h2 class="text-xl font-bold mb-6">Study Preferences</h2>
+
+                    <div class="settings-section mb-8">
+                        <div class="input-group mb-6">
+                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Daily
+                                Review Limit</label>
+                            <input type="number" id="settings-daily-limit" value="20" min="5" max="500"
+                                style="max-width: 150px;">
+                            <p class="text-xs text-secondary mt-2">Maximum cards to study per session by default.</p>
+                        </div>
+
+                        <div class="input-group mb-6">
+                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Default
+                                Rating Separator</label>
+                            <input type="text" id="settings-default-separator" value="|" style="max-width: 80px;">
+                            <p class="text-xs text-secondary mt-2">Separator used for Bulk Add.</p>
+                        </div>
+
+                        <div class="toggle-group">
+                            <div
+                                style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                                <div>
+                                    <h4 class="text-sm font-medium">Auto-reveal Answer</h4>
+                                    <p class="text-xs text-secondary">Flip card automatically after 5 seconds</p>
+                                </div>
+                                <input type="checkbox" id="settings-auto-flip" class="toggle-switch">
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 class="text-sm font-medium">Show Progress Bar</h4>
+                                    <p class="text-xs text-secondary">Display a progress indicator during study</p>
+                                </div>
+                                <input type="checkbox" id="settings-show-progress" checked class="toggle-switch">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Tab -->
+                <div id="settings-stats" class="settings-tab-view hidden">
+                    <h2 class="text-xl font-bold mb-6">Learning Statistics</h2>
+
+                    <div class="stats-overview-grid"
+                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                        <div class="stat-card"
+                            style="padding: 1.5rem; background: var(--primary-light); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                            <span class="text-xs text-primary font-bold uppercase"
+                                style="position: relative; z-index: 2;">Total Cards Mastered</span>
+                            <div id="settings-stat-mastered" class="text-3xl font-bold text-primary mt-1"
+                                style="position: relative; z-index: 2;">0</div>
+                        </div>
+                        <div class="stat-card"
+                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                            <span class="text-xs text-success font-bold uppercase"
+                                style="position: relative; z-index: 2;">Current Streak</span>
+                            <div id="settings-stat-streak" class="text-3xl font-bold text-success mt-1"
+                                style="position: relative; z-index: 2;">0 days</div>
+                        </div>
+                        <div class="stat-card"
+                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                            <span class="text-xs text-warning font-bold uppercase"
+                                style="position: relative; z-index: 2;">Total Reviews</span>
+                            <div id="settings-stat-reviews" class="text-3xl font-bold text-warning mt-1"
+                                style="position: relative; z-index: 2;">0</div>
+                        </div>
+                        <div class="stat-card"
+                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                            <span class="text-xs font-bold uppercase"
+                                style="position: relative; z-index: 2; color: var(--primary);">Decks Created</span>
+                            <div id="settings-stat-decks" class="text-3xl font-bold mt-1"
+                                style="position: relative; z-index: 2; color: var(--primary);">0</div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--background); border-radius: var(--radius); padding: 1.5rem;">
+                        <h4 class="text-sm font-semibold mb-2">Member Since</h4>
+                        <p id="settings-member-since" class="text-secondary text-base">January 2026</p>
+                    </div>
+                </div>
+
+                <!-- About Tab -->
+                <div id="settings-about" class="settings-tab-view hidden">
+                    <div style="text-align: center; padding: 2rem 0;">
+                        <img src="./Assets/logo.png" alt="Flashly Logo"
+                            style="width: 80px; height: 80px; margin-bottom: 1.5rem;">
+                        <h2 class="text-2xl font-bold">Flashly</h2>
+                        <p class="text-secondary mb-8">Version 0.28-beta</p>
+
+                        <div style="max-width: 400px; margin: 0 auto; line-height: 1.6; color: var(--text-secondary);">
+                            <p class="mb-4">Flashly is an open-source spaced repetition system designed for speed,
+                                focus, and collaboration.</p>
+                            <p>Build with ❤️ by focused students for focused students.</p>
+                        </div>
+
+                        <div class="mt-8 flex justify-center gap-4" style="text-decoration: none;">
+                            <a href="https://github.com/zandenkoh/flashly" class="btn btn-secondary btn-sm"
+                                target="_blank" style="text-decoration: none;">Release notes</a>
+                            <a href="./support/index.html" class="btn btn-secondary btn-sm" target="_blank"
+                                style="text-decoration: none;">Support</a>
+                            <a href="./privacy/index.html" class="btn btn-secondary btn-sm" target="_blank"
+                                style="text-decoration: none;">Privacy Policy</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
+
 
         <!-- Create Group Modal -->
         <div id="create-group-modal" class="modal hidden">
@@ -1014,7 +1273,7 @@
                     <label>Cards Data (Front [Separator] Back)</label>
                     <textarea id="bulk-add-input" rows="12"
                         placeholder="Example:&#10;Apple | Red fruit&#10;Banana | Yellow fruit" required
-                        style="font-family: monospace;"></textarea>
+                        style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;"></textarea>
                 </div>
 
                 <div class="bulk-settings"
@@ -1089,6 +1348,11 @@
                 <div class="input-group">
                     <label>Name</label>
                     <input type="text" id="rename-input" required>
+                </div>
+                <div class="input-group hidden" id="rename-description-group">
+                    <label>Description</label>
+                    <textarea id="rename-description-input" rows="3"
+                        style="font-family: inherit; font-size: inherit; resize: vertical;"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-text close-modal">Cancel</button>
