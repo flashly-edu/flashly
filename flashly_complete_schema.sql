@@ -451,3 +451,57 @@ $$ language plpgsql security definer;
 create or replace trigger on_group_created
   after insert on public.groups
   for each row execute procedure public.handle_new_group();
+-- NOTES
+create table public.notes (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  title text not null,
+  content text, -- Stores Quill delta or HTML
+  is_file boolean default false,
+  file_path text,
+  file_type text,
+  subject_id uuid references public.subjects(id) on delete set null,
+  group_id uuid references public.groups(id) on delete cascade,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Note: We need a trigger to update updated_at, but for now we handle it in app or simple default.
+-- Let's add a simple trigger for updated_at if we want to be thorough, 
+-- but consistent with existing schema style, we might skip complex triggers if not present elsewhere.
+-- existing schema doesn't seem to have updated_at triggers excessively.
+
+alter table public.notes enable row level security;
+
+-- Policies for Notes
+
+create policy "Users can view their own notes."
+  on public.notes for select
+  using ( auth.uid() = user_id );
+
+create policy "Users can view group notes."
+  on public.notes for select
+  using (
+    exists (
+      select 1 from public.group_members gm
+      where gm.group_id = notes.group_id
+      and gm.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can insert their own notes."
+  on public.notes for insert
+  with check ( auth.uid() = user_id );
+
+create policy "Users can update their own notes."
+  on public.notes for update
+  using ( auth.uid() = user_id );
+
+create policy "Users can delete their own notes."
+  on public.notes for delete
+  using ( auth.uid() = user_id );
+
+-- Index for performance
+create index idx_notes_user_id on public.notes(user_id);
+create index idx_notes_subject_id on public.notes(subject_id);
+create index idx_notes_group_id on public.notes(group_id);

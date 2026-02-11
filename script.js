@@ -45,7 +45,9 @@ const state = {
     studyOrigin: null, // Track for back navigation from study view
     selectionMode: false,
     selectedCardIds: new Set(),
-    subjects: [] // New state for subjects
+    subjects: [], // New state for subjects
+    deckTab: 'my',
+    communityDecks: []
 };
 
 const DEFAULT_TAGS = [
@@ -197,7 +199,10 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
 });
 
 // Logout
-document.getElementById('logout-btn').addEventListener('click', () => sb.auth.signOut());
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    window.location.reload();
+});
 
 function showAuth() {
     authView.classList.remove('hidden');
@@ -290,6 +295,27 @@ document.getElementById('nav-decks').addEventListener('click', () => {
     switchView('decks-view');
     loadDecksView();
 });
+
+const myDecksTab = document.getElementById('my-decks-tab');
+const sharedDecksTab = document.getElementById('shared-decks-tab');
+
+if (myDecksTab) {
+    myDecksTab.addEventListener('click', () => {
+        state.deckTab = 'my';
+        myDecksTab.classList.add('active');
+        sharedDecksTab.classList.remove('active');
+        loadDecksView();
+    });
+}
+
+if (sharedDecksTab) {
+    sharedDecksTab.addEventListener('click', () => {
+        state.deckTab = 'shared';
+        sharedDecksTab.classList.add('active');
+        myDecksTab.classList.remove('active');
+        loadDecksView();
+    });
+}
 
 document.getElementById('nav-insights').addEventListener('click', () => {
     updateNav('nav-insights');
@@ -513,7 +539,10 @@ async function loadTodayView() {
     // --- Retention Calculation (Good+Easy / Total) ---
     const retention = totalReviews > 0 ? Math.round((goodEasyCount / totalReviews) * 100) : 0;
     const retentionText = document.getElementById('retention-text');
-    if (retentionText) retentionText.textContent = retention + '%';
+    if (retentionText) {
+        retentionText.textContent = retention + '%';
+        retentionText.style.color = 'var(--text-primary)';
+    }
 
     drawRetentionDonut(retention);
 
@@ -600,7 +629,7 @@ async function loadFocusDecks() {
     top3.forEach(deck => {
         const stats = deckStats[deck.id];
         const div = document.createElement('div');
-        div.className = 'dashboard-card hover-card';
+        div.className = 'dashboard-card';
         div.innerHTML = `
             <div class="flex justify-between items-start mb-6">
                 <span class="badge badge-due">${stats.count} Due</span>
@@ -624,29 +653,70 @@ function drawRetentionDonut(percent) {
     const canvas = document.getElementById('retention-donut');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const size = canvas.width = canvas.height = 120; // High DPI?
+
+    // Handle High DPI
+    const dpr = window.devicePixelRatio || 1;
+    const size = 120;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = size + 'px';
+    canvas.style.height = size + 'px';
+    ctx.scale(dpr, dpr);
+
     const radius = size / 2;
     const lineWidth = 10;
+    const center = size / 2;
 
     ctx.clearRect(0, 0, size, size);
 
     // Background circle
     ctx.beginPath();
-    ctx.arc(radius, radius, radius - lineWidth, 0, 2 * Math.PI);
+    ctx.arc(center, center, radius - lineWidth, 0, 2 * Math.PI);
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = lineWidth;
     ctx.stroke();
 
     // Progress arc
-    const startAngle = -Math.PI / 2;
-    const endAngle = startAngle + (2 * Math.PI * (percent / 100));
+    if (percent > 0) {
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (2 * Math.PI * (percent / 100));
 
-    ctx.beginPath();
-    ctx.arc(radius, radius, radius - lineWidth, startAngle, endAngle);
-    ctx.strokeStyle = 'var(--primary)'; // Blue
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
-    ctx.stroke();
+        // Create gradient for better look
+        const gradient = ctx.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, '#2563eb');
+        gradient.addColorStop(1, '#3b82f6'); // A slightly different blue
+
+        ctx.beginPath();
+        ctx.arc(center, center, radius - lineWidth, startAngle, endAngle);
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+    }
+
+    // Percentage text in middle (if we want to draw it on canvas too, but HTML is better)
+    // The HTML element #retention-text is already centered via CSS.
+}
+
+// Utility for subject colors
+function getSubjectColor(name) {
+    if (!name) return 'linear-gradient(135deg, #64748b, #475569)'; // Gray for no subject
+
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    // Convert to HSL
+    // Hue: 0-360
+    // Saturation: 60-80% for vibrant but not neon
+    // Lightness: 25-40% for dark enough for white text
+    const h = Math.abs(hash % 360);
+    const s = 65 + (Math.abs(hash % 15));
+    const l = 30 + (Math.abs(hash % 10));
+
+    return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
 document.getElementById('start-today-review-btn').addEventListener('click', () => {
@@ -658,13 +728,13 @@ document.getElementById('start-today-review-btn').addEventListener('click', () =
 
 // --- Decks View (List Layout) ---
 
-async function loadDecksView() {
-    const { data: decks, error } = await sb
-        .from('decks')
-        .select('*')
-        .eq('user_id', state.user.id)
-        .is('group_id', null)
-        .order('created_at', { ascending: false });
+async function loadDecksView(force = false) {
+    if (state.decks.length > 0 && !force) {
+        renderDecksViewWithSubjects();
+        return;
+    }
+
+    const { data: decks, error } = await sb.from('decks').select('*').order('created_at', { ascending: false });
 
     if (error) return showToast(error.message, 'error');
 
@@ -672,7 +742,7 @@ async function loadDecksView() {
     const stats = {};
     const { data: cards } = await sb.from('cards').select('id, deck_id, due_at, interval_days');
 
-    // Fetch logs to calculate mastery (Last rating Good/Easy)
+    // Fetch logs to calculate mastery
     const { data: logs } = await sb.from('study_logs')
         .select('card_id, rating')
         .eq('user_id', state.user.id)
@@ -685,7 +755,6 @@ async function loadDecksView() {
         logs.forEach(log => {
             if (!seen.has(log.card_id)) {
                 seen.add(log.card_id);
-                // Mastery = Last rating was Good (3) or Easy (4)
                 if (log.rating >= 3) cardMastery.set(log.card_id, true);
             }
         });
@@ -696,19 +765,15 @@ async function loadDecksView() {
         cards.forEach(card => {
             if (!stats[card.deck_id]) stats[card.deck_id] = { total: 0, due: 0, new: 0, mature: 0 };
             stats[card.deck_id].total++;
-
             const due = card.due_at ? new Date(card.due_at) : null;
             const interval = Number(card.interval_days || 0);
-
             if (interval === 0) stats[card.deck_id].new++;
             if (interval > 0 && (due && due <= now)) stats[card.deck_id].due++;
-            // Mastery Check
             if (cardMastery.get(card.id)) stats[card.deck_id].mature++;
         });
     }
 
-    state.decks = decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
-    state.decks = decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
+    state.decks = (decks || []).map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
 
     // Fetch Subjects
     const { data: subjects } = await sb.from('subjects').select('*').order('name');
@@ -721,26 +786,27 @@ function renderDecksViewWithSubjects() {
     const list = document.getElementById('deck-list');
     list.innerHTML = '';
 
-    // Create Subject Header + Add Button
-    const headerActions = document.getElementById('create-subject-btn');
+    const filteredDecks = state.deckTab === 'shared'
+        ? state.decks.filter(d => d.user_id !== state.user.id)
+        : state.decks.filter(d => d.user_id === state.user.id);
 
-    if (state.decks.length === 0) {
-        // ... (Empty state logic preserved but simplified for brevity if needed, or re-use existing)
-        list.innerHTML += `
+    if (filteredDecks.length === 0) {
+        list.innerHTML = `
             <div class="empty-state">
                 <div style="width: 100%; text-align: center; margin: 100px 0">
-                    <h3>No Decks Yet</h3>
-                    <p>Create your first deck to start learning.</p>
-                    <button class="btn btn-primary mt-4" onclick="document.getElementById('create-deck-btn').click()">Create Deck</button>
+                    <h3>${state.deckTab === 'shared' ? 'No Shared Decks' : 'No Decks Yet'}</h3>
+                    <p>${state.deckTab === 'shared' ? 'Decks shared with you will appear here.' : 'Create your first deck to start learning.'}</p>
+                    ${state.deckTab === 'my' ? '<button class="btn btn-primary mt-4" onclick="document.getElementById(\'create-deck-btn\').click()">Create Deck</button>' : ''}
                 </div>  
             </div>
         `;
         return;
     }
 
-    // 1. Render Subjects
+    // 1. Render Subjects (only if they have decks in this tab)
     state.subjects.forEach(subject => {
-        const subjectDecks = state.decks.filter(d => d.subject_id === subject.id);
+        const subjectDecks = filteredDecks.filter(d => d.subject_id === subject.id);
+        if (subjectDecks.length === 0) return;
 
         const subjectSection = document.createElement('div');
         subjectSection.className = 'subject-section';
@@ -755,33 +821,27 @@ function renderDecksViewWithSubjects() {
                     <span class="subject-name">${escapeHtml(subject.name)}</span>
                     <span class="subject-count">${subjectDecks.length}</span>
                 </div>
+                ${state.deckTab === 'my' ? `
                 <div class="subject-actions">
                      <button class="btn-icon-only-sm context-trigger" onclick="openSubjectContext(event, '${subject.id}')">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-sm">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
                         </svg>
                     </button>
-                </div>
+                </div>` : ''}
             </div>
-            <div id="subject-content-${subject.id}" class="subject-content">
-                <!-- Decks go here -->
-            </div>
+            <div id="subject-content-${subject.id}" class="subject-content"></div>
         `;
         list.appendChild(subjectSection);
-
         const contentDiv = subjectSection.querySelector(`#subject-content-${subject.id}`);
-        if (subjectDecks.length > 0) {
-            subjectDecks.forEach(deck => renderDeckRow(deck, contentDiv));
-        } else {
-            contentDiv.innerHTML = `<div class="empty-subject-placeholder">No decks in this subject</div>`;
-        }
+        subjectDecks.forEach(deck => renderDeckRow(deck, contentDiv));
     });
 
     // 2. Render Uncategorized Decks
-    const uncategorized = state.decks.filter(d => !d.subject_id);
+    const uncategorized = filteredDecks.filter(d => !d.subject_id);
     if (uncategorized.length > 0) {
         const uncategorizedSection = document.createElement('div');
-        uncategorizedSection.className = 'subject-section'; // Reuse style or specialized one
+        uncategorizedSection.className = 'subject-section';
         uncategorizedSection.innerHTML = `
              <div class="subject-header">
                 <span class="subject-name" style="margin-left: 2rem;">Uncategorized</span>
@@ -957,7 +1017,7 @@ document.getElementById('move-deck-form').addEventListener('submit', async (e) =
 async function deleteDeckQuick(deck) {
     if (confirm(`Delete "${deck.title}"?`)) {
         await sb.from('decks').delete().eq('id', deck.id);
-        loadDecksView();
+        loadDecksView(true);
     }
 }
 
@@ -988,11 +1048,11 @@ document.getElementById('rename-form').addEventListener('submit', async (e) => {
     if (type === 'subject') {
         const { error } = await sb.from('subjects').update({ name }).eq('id', id);
         if (error) showToast(error.message, 'error');
-        else { showToast('Subject renamed'); loadDecksView(); }
+        else { showToast('Subject renamed'); loadDecksView(true); }
     } else if (type === 'deck') {
         const { error } = await sb.from('decks').update({ title: name }).eq('id', id);
         if (error) showToast(error.message, 'error');
-        else { showToast('Deck renamed'); loadDecksView(); }
+        else { showToast('Deck renamed'); loadDecksView(true); }
     }
     closeModal();
 });
@@ -1000,7 +1060,7 @@ document.getElementById('rename-form').addEventListener('submit', async (e) => {
 async function deleteSubject(subject) {
     if (confirm(`Delete subject "${subject.name}"? Decks will be uncategorized.`)) {
         await sb.from('subjects').delete().eq('id', subject.id);
-        loadDecksView();
+        loadDecksView(true);
     }
 
 }
@@ -1144,7 +1204,7 @@ document.getElementById('create-deck-form').addEventListener('submit', async (e)
             loadGroupDetails(state.creatingDecForGroup);
             state.creatingDecForGroup = null; // Reset
         } else {
-            loadDecksView();
+            loadDecksView(true);
         }
     }
 });
@@ -1161,6 +1221,8 @@ async function openDeck(deck) {
 
     state.currentDeck = deck;
     document.getElementById('current-deck-title').textContent = deck.title;
+    const descEl = document.getElementById('current-deck-description');
+    if (descEl) descEl.textContent = deck.description || '';
 
     const publicBadge = document.getElementById('deck-public-badge');
 
@@ -1173,50 +1235,60 @@ async function openDeck(deck) {
     switchView('deck-view');
 
     // Set Stats
-    const stats = deck.stats || { total: 0, due: 0, mature: 0 };
+    const stats = deck.stats || { total: 0, due: 0, new: 0, mature: 0 };
     const mastery = stats.total > 0 ? Math.round((stats.mature / stats.total) * 100) : 0;
 
-    const masteryTag = document.getElementById('deck-mastery-tag');
-    if (masteryTag) masteryTag.textContent = `${mastery}% Mastery`;
+    const masteryPercentEl = document.getElementById('deck-mastery-percent');
+    if (masteryPercentEl) masteryPercentEl.textContent = `${mastery}%`;
 
-    const barFill = document.getElementById('deck-mastery-bar-fill');
-    if (barFill) barFill.style.width = `${mastery}%`;
+    const circleFill = document.getElementById('deck-mastery-circle-fill');
+    if (circleFill) {
+        const circumference = 283; // Approx 2 * pi * 45
+        const offset = circumference - (mastery / 100) * circumference;
+        circleFill.style.strokeDashoffset = offset;
+    }
 
     const dueEl = document.getElementById('deck-due-count');
-    if (dueEl) dueEl.textContent = stats.due;
+    if (dueEl) dueEl.textContent = stats.due || 0;
+
+    const newEl = document.getElementById('deck-new-count');
+    if (newEl) newEl.textContent = stats.new || 0;
 
     const totalEl = document.getElementById('deck-total-count');
-    if (totalEl) totalEl.textContent = stats.total;
+    if (totalEl) totalEl.textContent = stats.total || 0;
 
     // UI Robustness: Toggle visibility of editor-only features
     const isOwner = state.user && deck.user_id === state.user.id;
 
-    // Header Actions Visibility (Utility Icons)
+    // Header Actions Visibility
     const utilityActions = document.querySelector('.deck-utility-actions');
-    if (utilityActions) utilityActions.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'flex' : 'none';
+    if (utilityActions) {
+        utilityActions.style.display = 'flex'; // Always flex if public or owner
 
-    // Update Share button
-    const shareBtn = document.getElementById('toggle-public-btn');
-    if (shareBtn) shareBtn.onclick = () => openShareModal(deck);
+        const shareBtn = document.getElementById('toggle-public-btn');
+        const settingsBtn = document.getElementById('deck-settings-btn');
+        const deleteBtn = document.getElementById('delete-deck-btn');
+        const canEdit = isOwner || (deck.group_id && canEditGroupDeck(deck));
+        if (shareBtn) {
+            shareBtn.style.display = canEdit ? 'flex' : 'none';
+            shareBtn.onclick = () => openShareModal(deck);
+        }
+        if (settingsBtn) {
+            settingsBtn.style.display = canEdit ? 'flex' : 'none';
+            settingsBtn.onclick = () => renameDeck(deck);
+        }
+        if (deleteBtn) deleteBtn.style.display = canEdit ? 'flex' : 'none';
 
-    // Settings Button
-    const settingsBtn = document.getElementById('deck-settings-btn');
-    if (settingsBtn) {
-        settingsBtn.onclick = () => {
-            // For now, re-use create-deck-modal for editing if possible or just rename
-            renameDeck(deck);
-        };
+        // Import for non-owners
+        const importUtilityBtn = document.getElementById('import-to-my-decks-btn');
+        if (importUtilityBtn) {
+            importUtilityBtn.classList.toggle('hidden', isOwner);
+            importUtilityBtn.style.display = isOwner ? 'none' : 'flex';
+            importUtilityBtn.onclick = () => importDeck(deck.id);
+        }
     }
 
-    // Delete Button
-    const deleteBtn = document.getElementById('delete-deck-btn');
-    // onclick already set globally, but better to ensure here? 
-    // The global listener uses state.currentDeck, which we just set. So it's fine.
-
-    // Split button dropdown logic (simple alert for now or placeholder)
-
-
-    // 2. "Add Card" button handling (now in import-section)
+    // 2. "Add Card" button handling
     const addCardBtn = document.getElementById('add-card-btn');
     if (addCardBtn) addCardBtn.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'inline-flex' : 'none';
 
@@ -1224,32 +1296,69 @@ async function openDeck(deck) {
     const importSection = document.querySelector('.import-section');
     if (importSection) importSection.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'flex' : 'none';
 
-    // Add/Remove Study-from-Community Import button (top row)
+    // Add/Remove Study-from-Community Import button (bottom row)
     let importBtn = document.getElementById('community-import-btn');
-    const mainActions = document.querySelector('.deck-main-actions');
+    const actionRow = document.querySelector('.deck-action-row');
 
     if (!isOwner) {
-        if (!importBtn && mainActions) {
+        if (!importBtn && actionRow) {
             importBtn = document.createElement('button');
             importBtn.id = 'community-import-btn';
-            importBtn.className = 'btn btn-success';
-            importBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-sm">
-                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                </svg>
-                Import
-            `;
+            importBtn.className = 'btn btn-secondary action-secondary';
+            importBtn.style.height = '48px';
+            importBtn.innerHTML = 'Import to My Decks';
             importBtn.onclick = () => importDeck(deck.id);
-            mainActions.prepend(importBtn);
+            actionRow.appendChild(importBtn);
         }
-    } else if (importBtn) {
-        importBtn.remove();
+    } else {
+        if (importBtn) importBtn.remove();
     }
 
-    // "Save to Shortcuts" Button
     updateSaveDeckButton(deck);
-
     loadCards(deck.id);
+}
+
+async function importDeck(deckId) {
+    showToast('Importing deck...', 'info');
+
+    // 1. Fetch deck and cards
+    const { data: deck, error: deckError } = await sb.from('decks').select('*').eq('id', deckId).single();
+    if (deckError) return showToast(deckError.message, 'error');
+
+    const { data: cards, error: cardsError } = await sb.from('cards').select('*').eq('deck_id', deckId);
+    if (cardsError) return showToast(cardsError.message, 'error');
+
+    // 2. Create new deck
+    const { data: newDeck, error: newDeckError } = await sb.from('decks').insert([{
+        user_id: state.user.id,
+        title: `${deck.title} (Imported)`,
+        description: deck.description,
+        is_public: false
+    }]).select().single();
+
+    if (newDeckError) return showToast(newDeckError.message, 'error');
+
+    // 3. Insert cards
+    if (cards && cards.length > 0) {
+        const cardsToInsert = cards.map(c => ({
+            deck_id: newDeck.id,
+            front: c.front,
+            back: c.back,
+            due_at: new Date()
+        }));
+        const { error: insertError } = await sb.from('cards').insert(cardsToInsert);
+        if (insertError) showToast(insertError.message, 'error');
+    }
+
+    showToast('Deck imported successfully!');
+    if (state.deckTab !== 'my') {
+        state.deckTab = 'my';
+        const myDecksTab = document.getElementById('my-decks-tab');
+        const sharedDecksTab = document.getElementById('shared-decks-tab');
+        if (myDecksTab) myDecksTab.classList.add('active');
+        if (sharedDecksTab) sharedDecksTab.classList.remove('active');
+    }
+    loadDecksView();
 }
 
 function canEditGroupDeck(deck) {
@@ -1362,7 +1471,7 @@ function renderCardList() {
         const isSelected = state.selectedCardIds.has(card.id);
 
         const item = document.createElement('div');
-        item.className = `flashcard-item ${state.selectionMode ? 'selecting' : ''}`;
+        item.className = `flashcard-item card-style ${state.selectionMode ? 'selecting' : ''}`;
         if (state.selectionMode) {
             item.onclick = () => toggleCardSelection(card.id);
         }
@@ -1650,6 +1759,7 @@ document.getElementById('csv-upload').addEventListener('change', (e) => {
             else {
                 showToast(`Imported ${cardsToInsert.length} cards`);
                 loadCards(state.currentDeck.id);
+                if (state.currentView === 'deck-view') openDeck(state.currentDeck); // Refresh header
             }
             e.target.value = ''; // Reset input
         },
@@ -1658,6 +1768,47 @@ document.getElementById('csv-upload').addEventListener('change', (e) => {
         }
     });
 });
+
+// --- Add to Group Shortcut ---
+document.getElementById('add-to-group-btn').onclick = async () => {
+    if (!state.currentDeck) return;
+
+    // Ensure groups are loaded
+    await loadGroups();
+
+    const select = document.getElementById('add-to-group-select');
+    select.innerHTML = '<option value="">Select a Group...</option>';
+    if (state.groups && state.groups.length > 0) {
+        state.groups.forEach(g => {
+            select.innerHTML += `<option value="${g.id}">${escapeHtml(g.name)}</option>`;
+        });
+    } else {
+        select.innerHTML = '<option value="">No groups found. Create one first!</option>';
+    }
+    document.getElementById('add-to-group-deck-id').value = state.currentDeck.id;
+    document.getElementById('share-modal').classList.add('hidden'); // Hide share modal
+    openModal('add-to-group-modal');
+};
+
+document.getElementById('add-to-group-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const deckId = document.getElementById('add-to-group-deck-id').value;
+    const groupId = document.getElementById('add-to-group-select').value;
+    if (!groupId) return;
+
+    const { error } = await sb.from('decks').update({ group_id: groupId }).eq('id', deckId);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Deck added to group shortcut');
+        closeModal();
+        // Refresh deck state
+        if (state.currentDeck && state.currentDeck.id === deckId) {
+            state.currentDeck.group_id = groupId;
+            openDeck(state.currentDeck);
+        }
+    }
+};
 
 // Public toggle is now handled within the share modal
 
@@ -2014,7 +2165,7 @@ async function openGroup(group) {
         if (!document.getElementById('delete-group-btn')) {
             const btn = document.createElement('button');
             btn.id = 'delete-group-btn';
-            btn.className = 'btn btn-danger-outline btn-sm';
+            btn.className = 'btn btn-danger-outline';
             btn.textContent = 'Delete Group';
             btn.onclick = () => deleteGroup(group.id);
             document.querySelector('#group-detail-view .header-actions').appendChild(btn); // Assuming structure
@@ -2126,9 +2277,16 @@ function renderGroupDecks() {
         const div = document.createElement('div');
         div.className = 'deck-card';
         div.innerHTML = `
-            <div>
-                 <div class="deck-title">${escapeHtml(deck.title)}</div>
-                 <div class="deck-desc">${escapeHtml(deck.description || '')}</div>
+            <div style="display:flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                     <div class="deck-title" style="margin-bottom: 4px;">${escapeHtml(deck.title)}</div>
+                     <div class="deck-desc">${escapeHtml(deck.description || '')}</div>
+                </div>
+                <button class="btn btn-icon-only-sm context-trigger" onclick="openGroupDeckContext(event, '${deck.id}')" style="padding: 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-sm">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                    </svg>
+                </button>
             </div>
              <div style="margin-top: 1rem;">
                 ${deck.is_public ? '<span class="badge" style="background:var(--success);color:white;font-size:0.7em">Public</span>' : ''}
@@ -2141,6 +2299,27 @@ function renderGroupDecks() {
         grid.appendChild(div);
     });
 }
+
+window.openGroupDeckContext = (e, deckId) => {
+    e.stopPropagation();
+    const deck = state.groupDecks.find(d => d.id === deckId);
+    if (!deck) return;
+
+    const isOwner = deck.user_id === state.user.id;
+    const isAdmin = state.groupMembers.find(m => m.user_id === state.user.id && m.role === 'admin');
+
+    const options = [
+        { label: 'Study', action: () => { state.currentDeck = deck; state.studySessionConfig = { type: 'standard' }; startStudySession(); } },
+        { label: 'View Details', action: () => openDeck(deck) },
+        { label: 'Import to My Decks', action: () => importDeck(deck.id) }
+    ];
+
+    if (isOwner || isAdmin) {
+        options.push({ label: 'Remove from Group', danger: true, action: () => removeDeckFromGroup(deck.id) });
+    }
+
+    renderContextMenu(e.clientX, e.clientY, options);
+};
 
 function renderGroupMembers() {
     const list = document.getElementById('group-members-list');
@@ -2516,58 +2695,117 @@ function renderMaturityChart(data) {
 
 // --- Community ---
 
-async function loadCommunityDecks() {
-    const grid = document.getElementById('community-deck-grid');
-    grid.innerHTML = '<p>Loading public decks...</p>';
+async function loadCommunityDecks(force = false) {
+    if (state.communityDecks.length > 0 && !force) {
+        renderCommunityDecks();
+        return;
+    }
 
-    // Fetch public decks with profiles join
+    const grid = document.getElementById('community-deck-grid');
+    grid.innerHTML = '<div class="flex justify-center py-10"><span class="loading-spinner"></span><span class="ml-2">Loading Community Decks...</span></div>';
+
+    // Fetch public decks with profiles and card count aggregate if possible
+    // Since PostgREST doesn't support complex count aggregations in one select easily, 
+    // we fetch them and then fetch card counts.
     const { data: decks, error } = await sb
         .from('decks')
-        .select('*, profiles:user_id(username)')
+        .select('*, profiles:user_id(username), subjects(name)')
         .eq('is_public', true)
         .order('created_at', { ascending: false });
 
     if (error) {
         console.error("Error loading community decks:", error);
+        grid.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+        return;
+    }
+
+    // Fetch card counts for these decks
+    const safeDecks = decks || [];
+    const deckIds = safeDecks.map(d => d.id);
+    const { data: cardCounts } = await sb
+        .from('cards')
+        .select('deck_id')
+        .in('deck_id', deckIds);
+
+    const countsMap = {};
+    if (cardCounts) {
+        cardCounts.forEach(c => {
+            countsMap[c.deck_id] = (countsMap[c.deck_id] || 0) + 1;
+        });
+    }
+
+    state.communityDecks = safeDecks.map(d => ({
+        ...d,
+        card_count: countsMap[d.id] || 0
+    }));
+
+    renderCommunityDecks();
+}
+
+function renderCommunityDecks() {
+    const grid = document.getElementById('community-deck-grid');
+    const results = document.getElementById('community-search-results');
+    grid.innerHTML = '';
+    results.innerHTML = '';
+    results.classList.add('hidden');
+    grid.classList.remove('hidden');
+
+    let sorted = [...state.communityDecks];
+    const sortBy = document.getElementById('community-sort-select').value;
+
+    if (sortBy === 'user') {
+        sorted.sort((a, b) => (a.profiles?.username || '').localeCompare(b.profiles?.username || ''));
+    } else if (sortBy === 'cards') {
+        sorted.sort((a, b) => (b.card_count || 0) - (a.card_count || 0));
+    } else if (sortBy === 'az') {
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'za') {
+        sorted.sort((a, b) => b.title.localeCompare(a.title));
+    } else {
+        sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    }
+
+    if (sorted.length === 0) {
         grid.innerHTML = `
-            <div class="error-container">
-                <p>Error loading decks: ${error.message}</p>
-                <button class="btn btn-primary btn-sm" onclick="loadCommunityDecks()">Retry</button>
+            <div style="grid-column: 1/-1; text-align: center; padding: 4rem 1rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">✨</div>
+                <h3 class="text-xl font-bold">No public decks yet</h3>
+                <p class="text-dim">Be the first to share a deck with the community!</p>
             </div>
         `;
         return;
     }
 
-    state.communityDecks = decks || [];
-    renderCommunityDecks();
-}
+    sorted.forEach(deck => {
+        const subjectName = deck.subjects?.name || '';
+        const bannerColor = getSubjectColor(subjectName);
 
-function renderCommunityDecks(filter = '') {
-    const grid = document.getElementById('community-deck-grid');
-    grid.innerHTML = '';
-
-    const filtered = state.communityDecks.filter(d =>
-        d.title.toLowerCase().includes(filter.toLowerCase()) ||
-        (d.profiles?.username || '').toLowerCase().includes(filter.toLowerCase()) ||
-        (d.description || '').toLowerCase().includes(filter.toLowerCase())
-    );
-
-    if (filtered.length === 0) {
-        grid.innerHTML = `<p style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-secondary)">No results matching "${filter}"</p>`;
-        return;
-    }
-
-    filtered.forEach(deck => {
         const div = document.createElement('div');
-        div.className = 'deck-card';
+        div.className = 'community-deck-card';
         div.innerHTML = `
-            <div class="deck-title">${escapeHtml(deck.title)}</div>
-            <div class="deck-desc">${escapeHtml(deck.description || 'No description')}</div>
-            <div class="deck-stats" style="margin-top:auto; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
-               <div class="user-avatar-xs" style="width:20px; height:20px; border-radius:50%; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; font-weight:700; color:var(--primary); font-size:0.6rem">
-                   ${(deck.profiles?.username || 'U').charAt(0).toUpperCase()}
-               </div>
-               <span>${escapeHtml(deck.profiles?.username || 'user')}</span>
+            <div class="community-card-banner" style="background: ${bannerColor}">
+                <div class="banner-subject-badge">${escapeHtml(subjectName || 'General')}</div>
+                <div class="banner-initials">${escapeHtml((deck.title || 'D').slice(0, 20)) + '...'.toUpperCase()}</div>
+            </div>
+            <div class="community-card-content">
+                <div class="community-card-header">
+                    <h3 class="community-deck-title">${escapeHtml(deck.title)}</h3>
+                    <span class="community-card-count">${deck.card_count || 0} cards</span>
+                </div>
+                <p class="community-deck-excerpt">${escapeHtml(deck.description || 'Access these flashcards and start learning today.')}</p>
+                
+                <div class="community-card-footer">
+                    <div class="creator-mini-profile">
+                        <div class="creator-avatar">${(deck.profiles?.username || 'U').charAt(0).toUpperCase()}</div>
+                        <div class="creator-info">
+                            <span class="creator-label">Shared by</span>
+                            <span class="creator-name">${escapeHtml(deck.profiles?.username || 'user')}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm community-view-btn" onclick="event.stopPropagation(); openDeckById('${deck.id}')">
+                        Study
+                    </button>
+                </div>
             </div>
         `;
         div.onclick = () => openDeck(deck);
@@ -2575,61 +2813,186 @@ function renderCommunityDecks(filter = '') {
     });
 }
 
-// Search Listener
+// Search Suggestions
 document.getElementById('community-search').addEventListener('input', (e) => {
-    renderCommunityDecks(e.target.value);
+    const val = e.target.value.trim().toLowerCase();
+    const suggestions = document.getElementById('community-search-suggestions');
+
+    if (val.length < 2) {
+        suggestions.classList.add('hidden');
+        return;
+    }
+
+    const matches = state.communityDecks.filter(d =>
+        d.title.toLowerCase().includes(val) ||
+        (d.profiles?.username || '').toLowerCase().includes(val)
+    ).slice(0, 8);
+
+    if (matches.length === 0) {
+        suggestions.classList.add('hidden');
+        return;
+    }
+
+    suggestions.innerHTML = matches.map(m => `
+        <div class="dropdown-item search-suggestion-item" onclick="setCommunitySearch('${escapeHtml(m.title)}')">
+            <div style="font-weight:600">${escapeHtml(m.title)}</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary)">by ${escapeHtml(m.profiles?.username || 'user')}</div>
+        </div>
+    `).join('');
+    suggestions.classList.remove('hidden');
 });
 
-window.importDeck = async (deckId) => {
-    const btn = document.getElementById('community-import-btn') || event?.target;
-    const originalText = btn ? btn.innerHTML : 'Import';
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="loading-spinner"></span> Importing...';
+window.setCommunitySearch = (val) => {
+    document.getElementById('community-search').value = val;
+    document.getElementById('community-search-suggestions').classList.add('hidden');
+    executeCommunitySearch();
+};
+
+document.getElementById('community-search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') executeCommunitySearch();
+});
+
+document.getElementById('community-search-btn').addEventListener('click', () => {
+    executeCommunitySearch();
+});
+
+document.getElementById('community-sort-select').addEventListener('change', renderCommunityDecks);
+
+async function openDeckById(id) {
+    const deck = state.communityDecks.find(d => d.id === id) || state.decks.find(d => d.id === id);
+    if (deck) openDeck(deck);
+}
+
+async function executeCommunitySearch() {
+    const val = document.getElementById('community-search').value.trim().toLowerCase();
+    const grid = document.getElementById('community-deck-grid');
+    const results = document.getElementById('community-search-results');
+    const suggestions = document.getElementById('community-search-suggestions');
+    const clearBtn = document.getElementById('clear-search-btn');
+
+    suggestions.classList.add('hidden');
+    if (!val) {
+        renderCommunityDecks();
+        clearBtn.classList.add('hidden');
+        return;
     }
 
-    try {
-        // 1. Fetch deep details
-        const { data: deck } = await sb.from('decks').select('*').eq('id', deckId).single();
-        const { data: cards } = await sb.from('cards').select('*').eq('deck_id', deckId);
+    grid.classList.add('hidden');
+    results.classList.remove('hidden');
+    clearBtn.classList.remove('hidden');
+    results.innerHTML = `<h3 style="margin-bottom: 3rem; font-size: 1.5rem; font-weight: 700;">Search Results for "${escapeHtml(val)}"</h3>`;
 
-        if (!deck || !cards) throw new Error('Could not fetch deck details');
+    // 1. Groups by Users
+    const userMatches = [...new Set(state.communityDecks
+        .filter(d => (d.profiles?.username || '').toLowerCase().includes(val))
+        .map(d => d.profiles?.username))]
+        .filter(u => u);
 
-        // 2. Insert new deck for me
-        const { data: newDeck, error: dErr } = await sb.from('decks').insert([{
-            user_id: state.user.id,
-            title: deck.title,
-            description: deck.description,
-            is_public: false
-        }]).select().single();
+    if (userMatches.length > 0) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '3rem';
+        section.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.5rem;">
+                <span style="font-size: 0.875rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.15em; white-space: nowrap;">CREATORS</span>
+            </div>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                ${userMatches.map(u => `
+                    <div class="user-chip hover-card" onclick="setCommunitySearch('${escapeHtml(u)}')">
+                        <div class="user-avatar-xs">${u.charAt(0).toUpperCase()}</div>
+                        <span class="font-bold text-sm">${escapeHtml(u)}</span>
+                    </div>
+                `).join('')}
+            </div>`;
+        results.appendChild(section);
+    }
 
-        if (dErr) throw dErr;
+    // 2. Groups by Subjects
+    const subjectMatches = state.subjects.filter(s => s.name.toLowerCase().includes(val));
+    if (subjectMatches.length > 0) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '3rem';
+        section.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.5rem;">
+                <span style="font-size: 0.875rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.15em; white-space: nowrap;">LEARNING AREAS</span>
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                ${subjectMatches.map(s => `
+                    <div class="subject-tag hover-card" onclick="setCommunitySearch('${escapeHtml(s.name)}')">
+                        ${escapeHtml(s.name)}
+                    </div>
+                `).join('')}
+            </div>`;
+        results.appendChild(section);
+    }
 
-        // 3. Batch Insert cards for efficiency
-        if (cards.length > 0) {
-            const newCards = cards.map(c => ({
-                deck_id: newDeck.id,
-                front: c.front,
-                back: c.back,
-                due_at: new Date()
-            }));
-            const { error: cErr } = await sb.from('cards').insert(newCards);
-            if (cErr) throw cErr;
-        }
+    // 3. Groups by Decks
+    const deckMatches = state.communityDecks.filter(d =>
+        d.title.toLowerCase().includes(val) ||
+        (d.description || '').toLowerCase().includes(val)
+    );
 
-        showToast('Deck Imported Successfully!', 'success');
-        switchView('decks-view');
-        loadDecksView();
-    } catch (err) {
-        console.error(err);
-        showToast(err.message, 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
+    if (deckMatches.length > 0) {
+        const section = document.createElement('div');
+        section.style.marginBottom = '3rem';
+        section.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.5rem;">
+                <span style="font-size: 0.875rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.15em; white-space: nowrap;">KNOWLEDGE DECKS</span>
+            </div>
+            <div style="display:     flex; flex-direction: column; gap: 1.25rem;"></div>`;
+        const list = section.querySelector('div:last-child');
+
+        deckMatches.forEach(deck => {
+            const subjectName = deck.subjects?.name || '';
+            const bannerColor = getSubjectColor(subjectName);
+
+            const div = document.createElement('div');
+            div.className = 'community-deck-card-horizontal';
+            div.innerHTML = `
+                <div style="width: 6px; background: ${bannerColor}; flex-shrink: 0;"></div>
+                <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1;">
+                    <div>
+                        <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.5rem 0; line-height: 1.3;">${escapeHtml(deck.title)}</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.5; margin: 0;">${escapeHtml(deck.description || 'No description provided.')}</p>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 1.25rem; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <div class="creator-avatar" style="width:28px; height:28px; font-size:0.75rem">${(deck.profiles?.username || 'U').charAt(0).toUpperCase()}</div>
+                                <div style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8rem; color: var(--text-secondary);">
+                                    <span>by</span>
+                                    <span style="font-weight: 600; color: var(--text-primary);">${escapeHtml(deck.profiles?.username || 'user')}</span>
+                                </div>
+                            </div>
+                            <span style="font-size: 1rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; background: ${bannerColor}20; color: ${bannerColor}; border: 1px solid ${bannerColor}30; white-space: nowrap;">${escapeHtml(subjectName || 'General')}</span>
+                            <span style="font-size: 1rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">${deck.card_count || 0} cards</span>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openDeckById('${deck.id}')">Study</button>
+                    </div>
+                </div>
+            `;
+            div.onclick = () => openDeck(deck);
+            list.appendChild(div);
+        });
+        results.appendChild(section);
+    }
+
+    if (userMatches.length === 0 && subjectMatches.length === 0 && deckMatches.length === 0) {
+        results.innerHTML += `
+            <div class="text-center py-20">
+                <div class="text-6xl mb-6">🔍</div>
+                <h3 class="text-xl font-bold mb-2">No results found</h3>
+                <p class="text-secondary">We couldn't find anything matching "${escapeHtml(val)}"</p>
+                <button class="btn btn-primary mt-4" style="margin-top: 20px;" onclick="document.getElementById('clear-search-btn').click()">Show All Decks</button>
+            </div>
+        `;
     }
 }
+
+document.getElementById('clear-search-btn').addEventListener('click', () => {
+    document.getElementById('community-search').value = '';
+    document.getElementById('clear-search-btn').classList.add('hidden');
+    renderCommunityDecks();
+});
 
 
 // --- Utils ---
@@ -2689,6 +3052,12 @@ modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) c
 async function openShareModal(deck) {
     state.currentDeck = deck;
     document.getElementById('share-deck-title').textContent = deck.title;
+
+    // Only owner can add to group from here
+    const isOwner = state.user && deck.user_id === state.user.id;
+    const addToGroupBtn = document.getElementById('add-to-group-btn');
+    if (addToGroupBtn) addToGroupBtn.style.display = isOwner ? 'flex' : 'none';
+
     updateShareUI();
     openModal('share-modal');
 }
@@ -2717,6 +3086,30 @@ async function updateShareUI() {
     const list = document.getElementById('share-list');
     list.innerHTML = '';
 
+    // Handle Group Shortcuts
+    const shortcutContainer = document.getElementById('group-shortcuts-container');
+    const shortcutList = document.getElementById('group-shortcuts-list');
+    if (shortcutContainer && shortcutList) {
+        if (deck.group_id) {
+            shortcutContainer.classList.remove('hidden');
+            shortcutList.innerHTML = '';
+            // Fetch group name
+            const { data: group } = await sb.from('groups').select('name').eq('id', deck.group_id).single();
+            const li = document.createElement('li');
+            li.className = 'share-list-item';
+            li.innerHTML = `
+                <div style="font-size:0.9rem">
+                    <div class="font-semibold">${escapeHtml(group ? group.name : 'Unknown Group')}</div>
+                    <div class="text-xs text-dim">Shortcut</div>
+                </div>
+                <button class="btn btn-text btn-sm text-danger" onclick="removeDeckFromGroup('${deck.id}')">Remove</button>
+            `;
+            shortcutList.appendChild(li);
+        } else {
+            shortcutContainer.classList.add('hidden');
+        }
+    }
+
     // Add owner
     const ownerLi = document.createElement('li');
     ownerLi.className = 'share-list-item';
@@ -2743,6 +3136,20 @@ async function updateShareUI() {
         });
     }
 }
+
+window.removeDeckFromGroup = async (deckId) => {
+    if (!confirm('Remove this deck from group shortcuts?')) return;
+    const { error } = await sb.from('decks').update({ group_id: null }).eq('id', deckId);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
+        showToast('Deck removed from group');
+        if (state.currentDeck) state.currentDeck.group_id = null;
+        updateShareUI();
+        // Also refresh the view if we are in groups or decks
+        if (decksView && !decksView.classList.contains('hidden')) loadDecksView();
+    }
+};
 
 document.getElementById('share-form').addEventListener('submit', async (e) => {
     e.preventDefault();
