@@ -40,9 +40,11 @@ const state = {
     groupDecks: [],
     groupMembers: [],
     savedDecks: [],
-    lastView: 'decks-view',
+    lastView: 'today-view',
     deckOrigin: 'decks-view', // Track for back navigation from deck view
     studyOrigin: null, // Track for back navigation from study view
+    groupOrigin: 'groups-view', // Track for back navigation from group view
+    gameOrigin: 'deck-view', // Track for back navigation from game view
     selectionMode: false,
     selectedCardIds: new Set(),
     subjects: [], // New state for subjects
@@ -56,7 +58,11 @@ const state = {
         defaultSeparator: '|',
         autoFlip: false,
         showProgress: true
-    }
+    },
+    channels: {
+        main: null
+    },
+    sessionRatings: [] // Track ratings in current session: { cardId: string, rating: number }
 };
 
 const DEFAULT_TAGS = [
@@ -124,6 +130,7 @@ async function checkUser() {
         showApp();
     } else {
         showAuth();
+        detectLinksEarly();
     }
 
     sb.auth.onAuthStateChange((_event, session) => {
@@ -160,6 +167,8 @@ document.querySelectorAll('.btn-login-toggle').forEach(btn => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.getElementById('guest-preview-modal').classList.add('hidden');
+        modalOverlay.classList.add('hidden');
     };
 });
 
@@ -168,6 +177,8 @@ document.querySelectorAll('.btn-signup-toggle').forEach(btn => {
         authMode = 'signup';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.getElementById('guest-preview-modal').classList.add('hidden');
+        modalOverlay.classList.add('hidden');
     };
 });
 
@@ -279,6 +290,53 @@ async function handleDeepLinks() {
     if (dirty) {
         window.history.replaceState({}, document.title, url.toString());
     }
+}
+
+async function detectLinksEarly() {
+    const url = new URL(window.location.href);
+    const joinCode = url.searchParams.get('join');
+    const deckId = url.searchParams.get('deck');
+
+    if (!joinCode && !deckId) return;
+
+    if (joinCode) {
+        const { data: group } = await sb.from('groups').select('id, name').eq('invite_code', joinCode).maybeSingle();
+        if (group) showGuestPreview('group', group);
+    } else if (deckId) {
+        const { data: deck } = await sb.from('decks').select('id, title, description').eq('id', deckId).maybeSingle();
+        if (deck) showGuestPreview('deck', deck);
+    }
+}
+
+function showGuestPreview(type, data) {
+    const modal = document.getElementById('guest-preview-modal');
+    const title = document.getElementById('guest-preview-title');
+    const subtitle = document.getElementById('guest-preview-subtitle');
+    const meta = document.getElementById('guest-preview-meta');
+    const icon = document.getElementById('guest-preview-icon');
+
+    if (type === 'group') {
+        title.textContent = "Join this Group";
+        subtitle.textContent = "You've been invited to join a collaborative learning group on Flashly.";
+        meta.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="font-bold text-lg">${escapeHtml(data.name)}</div>
+            </div>
+            <div class="text-xs text-secondary mt-2">Sign in to see members and shared decks.</div>
+        `;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>`;
+    } else {
+        title.textContent = "Access this Deck";
+        subtitle.textContent = "Master this deck with our optimized spaced repetition system.";
+        meta.innerHTML = `
+            <div class="font-bold text-lg">${escapeHtml(data.title)}</div>
+            ${data.description ? `<div class="text-xs text-secondary mt-2">${escapeHtml(data.description)}</div>` : ''}
+        `;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-19.5 0A2.25 2.25 0 004.5 15h15a2.25 2.25 0 002.25-2.25m-19.5 0v.15a2.25 2.25 0 001.385 2.082l6.23 2.492a2.25 2.25 0 001.77 0l6.23-2.492a2.25 2.25 0 001.385-2.082v-.15" /></svg>`;
+    }
+
+    modal.classList.remove('hidden');
+    document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 async function fetchUserProfile() {
@@ -812,16 +870,22 @@ document.getElementById('back-to-dashboard').addEventListener('click', () => {
     else if (target === 'groups-view') loadGroups();
 });
 
-document.getElementById('delete-deck-btn').addEventListener('click', async () => {
-    if (!state.currentDeck) return;
-    if (!confirm(`Are you sure you want to delete "${state.currentDeck.title}"?`)) return;
-
-    const { error } = await sb.from('decks').delete().eq('id', state.currentDeck.id);
-    if (error) showToast(error.message, 'error');
-    else {
+async function deleteDeck(deckId) {
+    const { error } = await sb.from('decks').delete().eq('id', deckId);
+    if (error) {
+        showToast(error.message, 'error');
+    } else {
         showToast('Deck deleted');
+        closeModal();
         switchView('decks-view');
         loadDecksView();
+    }
+}
+
+document.getElementById('delete-deck-btn').addEventListener('click', async () => {
+    if (!state.currentDeck) return;
+    if (confirm(`Are you sure you want to delete "${state.currentDeck.title}"?`)) {
+        await deleteDeck(state.currentDeck.id);
     }
 });
 
@@ -834,18 +898,74 @@ function updateNav(activeId) {
 
 function setupRealtime() {
     cleanupRealtime();
-    state.channels.decks = sb
-        .channel('public:decks')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'decks' }, () => {
-            if (decksView && !decksView.classList.contains('hidden')) loadDecksView();
-            if (groupsView && !groupsView.classList.contains('hidden')) loadGroups();
-            if (state.currentGroup && document.getElementById('group-detail-view') && !document.getElementById('group-detail-view').classList.contains('hidden')) loadGroupDetails(state.currentGroup.id);
+
+    const channel = sb.channel('main-realtime');
+
+    channel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'decks' }, (payload) => {
+            console.log('Realtime change [decks]:', payload);
+            if (state.lastView === 'decks-view') loadDecksView(true);
+            if (state.lastView === 'today-view') loadTodayView();
+            if (state.lastView === 'groups-view') loadGroups();
+            if (state.lastView === 'group-detail-view' && state.currentGroup) loadGroupDetails(state.currentGroup.id);
+            if (state.lastView === 'deck-view' && state.currentDeck && (payload.new?.id === state.currentDeck.id || payload.old?.id === state.currentDeck.id)) {
+                if (payload.eventType === 'UPDATE') {
+                    state.currentDeck.title = payload.new.title;
+                    state.currentDeck.description = payload.new.description;
+                    const titleEl = document.getElementById('current-deck-title');
+                    if (titleEl) titleEl.textContent = payload.new.title;
+                    const descEl = document.getElementById('current-deck-description');
+                    if (descEl) descEl.textContent = payload.new.description || '';
+                } else if (payload.eventType === 'DELETE') {
+                    showToast('This deck has been deleted', 'info');
+                    switchView(state.deckOrigin || 'decks-view');
+                    loadDecksView(true);
+                }
+            }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, (payload) => {
+            console.log('Realtime change [cards]:', payload);
+            if (state.lastView === 'deck-view' && state.currentDeck && (payload.new?.deck_id === state.currentDeck.id || payload.old?.deck_id === state.currentDeck.id)) {
+                openDeck(state.currentDeck);
+            }
+            if (state.lastView === 'today-view') loadTodayView();
+            if (state.lastView === 'decks-view') loadDecksView(true);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'subjects' }, (payload) => {
+            if (state.lastView === 'decks-view') loadDecksView(true);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'study_logs' }, (payload) => {
+            if (state.lastView === 'today-view') loadTodayView();
+            if (state.lastView === 'insights-view') loadStats();
+            if (state.lastView === 'deck-view' && state.currentDeck) openDeck(state.currentDeck);
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'groups' }, (payload) => {
+            if (state.lastView === 'groups-view') loadGroups();
+            if (state.lastView === 'group-detail-view' && state.currentGroup && payload.new?.id === state.currentGroup.id) {
+                if (payload.eventType === 'UPDATE') {
+                    document.getElementById('group-detail-title').textContent = payload.new.name;
+                    document.getElementById('group-invite-code').textContent = payload.new.invite_code || '---------';
+                }
+            }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload) => {
+            if (state.lastView === 'groups-view') loadGroups();
+            if (state.lastView === 'group-detail-view' && state.currentGroup && (payload.new?.group_id === state.currentGroup.id || payload.old?.group_id === state.currentGroup.id)) {
+                loadGroupDetails(state.currentGroup.id);
+            }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+            if (payload.new?.id === state.user?.id) {
+                fetchUserProfile();
+            }
         })
         .subscribe();
+
+    state.channels.main = channel;
 }
 
 function cleanupRealtime() {
-    if (state.channels.decks) sb.removeChannel(state.channels.decks);
+    if (state.channels.main) sb.removeChannel(state.channels.main);
 }
 
 
@@ -1250,8 +1370,8 @@ function renderDecksViewWithSubjects() {
     state.subjects.forEach(subject => {
         const subjectDecks = filteredDecks.filter(d => d.subject_id === subject.id);
 
-        // Don't show empty subjects in the shared tab
-        if (state.deckTab === 'shared' && subjectDecks.length === 0) return;
+        // Don't show empty subjects in the current tab
+        if (subjectDecks.length === 0) return;
 
         const subjectSection = document.createElement('div');
         subjectSection.className = 'subject-section';
@@ -1348,7 +1468,7 @@ document.getElementById('create-subject-form').addEventListener('submit', async 
     else {
         showToast('Subject created');
         closeModal();
-        loadDecksView();
+        loadDecksView(true);
     }
 });
 
@@ -1455,7 +1575,7 @@ document.getElementById('move-deck-form').addEventListener('submit', async (e) =
     else {
         showToast('Deck moved');
         closeModal();
-        loadDecksView();
+        loadDecksView(true);
     }
 });
 
@@ -1482,20 +1602,50 @@ window.renameSubject = (subject) => {
 };
 
 window.renameDeck = (deck) => {
-    document.getElementById('rename-modal-title').textContent = 'Rename Deck';
-    document.getElementById('rename-item-id').value = deck.id;
-    document.getElementById('rename-item-type').value = 'deck';
-    document.getElementById('rename-input').value = deck.title;
+    document.getElementById('deck-settings-id').value = deck.id;
+    document.getElementById('deck-settings-title').value = deck.title;
+    document.getElementById('deck-settings-description').value = deck.description || '';
 
-    const descGroup = document.getElementById('rename-description-group');
-    const descInput = document.getElementById('rename-description-input');
-    if (descGroup && descInput) {
-        descGroup.classList.remove('hidden');
-        descInput.value = deck.description || '';
+    // Setup Delete Button in Modal
+    const deleteBtn = document.getElementById('modal-delete-deck-btn');
+    if (deleteBtn) {
+        deleteBtn.onclick = () => {
+            if (confirm(`Are you sure you want to delete "${deck.title}"? This cannot be undone.`)) {
+                deleteDeck(deck.id);
+            }
+        };
     }
 
-    openModal('rename-modal');
+    openModal('deck-settings-modal');
 }
+
+document.getElementById('deck-settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('deck-settings-id').value;
+    const title = document.getElementById('deck-settings-title').value.trim();
+    const description = document.getElementById('deck-settings-description').value.trim();
+
+    if (!title) return;
+
+    try {
+        const { error } = await sb.from('decks').update({ title, description }).eq('id', id);
+        if (error) throw error;
+
+        showToast('Deck settings saved', 'success');
+        closeModal();
+
+        // Refresh State & UI
+        await loadDecks();
+        if (state.currentDeck && state.currentDeck.id === id) {
+            state.currentDeck.title = title;
+            state.currentDeck.description = description;
+            renderDeckView(state.currentDeck);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('Error saving settings', 'error');
+    }
+});
 
 document.getElementById('rename-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -2340,75 +2490,75 @@ document.getElementById('shuffle-study-btn').onclick = () => {
     showToast('Queue shuffled');
 };
 
-document.getElementById('fullscreen-study-btn').onclick = () => {
-    const studyView = document.getElementById('study-view');
-    if (!document.fullscreenElement) {
-        if (studyView.requestFullscreen) {
-            studyView.requestFullscreen().catch(err => {
-                showToast(`Error attempting to enable full-screen mode: ${err.message}`, 'error');
-            });
+const fullscreenBtn = document.getElementById('fullscreen-study-btn');
+if (fullscreenBtn) {
+    fullscreenBtn.onclick = () => {
+        const studyView = document.getElementById('study-view');
+        if (!document.fullscreenElement) {
+            if (studyView.requestFullscreen) {
+                studyView.requestFullscreen().catch(err => {
+                    showToast(`Error attempting to enable full-screen mode: ${err.message}`, 'error');
+                });
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
         }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        }
-    }
-};
+    };
+}
+
 
 // --- Study Logic ---
 
-async function startStudySession() {
-    // Capture origin
-    state.studyOrigin = state.lastView;
-
-    // 1. Fetch ALL cards (cached in state.cards) or need fetch if we are in 'global' custom study?
-    // For now, assume custom study is filtered on CURRENT DECK or ALL DECKS. 
-    // Implementation Plan said "Temporary study queues".
-    // If we want Custom Study across ALL decks, we need a fetch. 
-    // Let's keep it simple: Custom Study is within CURRENT DECK mainly contextually, 
-    // BUT the prompt implies advanced features. Let's do Current Deck for now to be safe with RLS/Data.
-
-    // Actually, dashboard has 'Custom Study' button. Let's assume it spans ALL decks if accessed from Dashboard, 
-    // or Current Deck if in Deck View.
-    // The button is in Dashboard view in HTML. So it spans ALL decks.
+async function startStudySession(restart = false) {
+    if (!restart) {
+        state.studyOrigin = state.lastView;
+        // Default Settings if not set
+        if (!state.studySettings) {
+            state.studySettings = {
+                trackProgress: true,
+                studyStarred: false,
+                cardSide: 'front', // front, back
+                showBoth: false
+            };
+        }
+    }
 
     let allCards = [];
     if (state.currentDeck) {
         allCards = state.cards;
     } else {
-        // Fetch all cards for custom study from dashboard
-        // We need to fetch tags too
         const { data } = await sb.from('cards').select(`*, card_tags(tag_id)`).order('due_at');
         if (data) allCards = data;
 
-        // Filter those due if standard
-        if (state.studySessionConfig.type === 'standard') {
+        if (state.studySessionConfig && state.studySessionConfig.type === 'standard') {
             const now = new Date();
             allCards = allCards.filter(c => !c.due_at || new Date(c.due_at) <= now || c.interval_days === 0);
         }
     }
 
+    // Apply Settings Filters (Starred)
+    // Note: 'Starred' is not a DB field yet, so we ship this feature as "available in UI but no op" or we filter if we had it.
+    // For now, if studyStarred is true, we might filter by a tag 'Starred' if it exists, or just warn.
+    // Let's assume there is no 'starred' field yet.
+
     let queue = [];
-    const config = state.studySessionConfig;
+    const config = state.studySessionConfig || { type: 'standard' };
 
     if (config.type === 'custom') {
         queue = allCards;
-        // Filter by Tag
         if (config.tagId) {
             queue = queue.filter(c => c.card_tags.some(ct => ct.tag_id === config.tagId));
         }
-        // Limit
         if (config.limit) {
             queue = queue.slice(0, config.limit);
         }
     } else {
-        // Standard SRS
         const now = new Date();
         queue = allCards.filter(c => !c.due_at || new Date(c.due_at) <= now || c.interval_days === 0);
-        // Sort by priority logic (simplified here)
         queue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
-        // Apply Daily Limit
         const limit = state.settings.dailyLimit || 20;
         if (queue.length > limit) {
             queue = queue.slice(0, limit);
@@ -2422,34 +2572,92 @@ async function startStudySession() {
 
     state.studyQueue = queue;
     state.currentCardIndex = 0;
+    state.sessionRatings = []; // Reset ratings for new session
+
+    // Update Header Info
+    if (state.currentDeck) {
+        document.getElementById('study-deck-title').textContent = state.currentDeck.title;
+        document.getElementById('study-deck-title').onclick = () => {
+            if (confirm("Exit study session?")) exitStudyMode();
+        };
+    }
+
+    // Init UI toggles
+    document.getElementById('study-track-progress-toggle').checked = state.studySettings.trackProgress;
+    document.getElementById('setting-track-progress').checked = state.studySettings.trackProgress;
+    document.getElementById('setting-study-starred').checked = state.studySettings.studyStarred;
+    document.getElementById('setting-card-side').value = state.studySettings.cardSide;
+    document.getElementById('setting-show-both').checked = state.studySettings.showBoth;
+
     switchView('study-view');
-    showNextCard();
+    showNextCard(false);
 }
 
 
-function showNextCard() {
+
+async function showNextCard(animate = true) {
     if (state.currentCardIndex >= state.studyQueue.length) {
         finishStudySession();
         return;
     }
-    const card = state.studyQueue[state.currentCardIndex];
-    document.getElementById('study-front').textContent = card.front;
-    document.getElementById('study-back').textContent = card.back;
-    document.getElementById('study-progress').textContent = `${state.studyQueue.length - state.currentCardIndex} remaining`;
 
     const flashcard = document.getElementById('active-flashcard');
+
+    // Fade out transition
+    if (animate && !state.settings.reducedMotion) {
+        flashcard.classList.add('fading-out');
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    const card = state.studyQueue[state.currentCardIndex];
+    const side = state.studySettings.cardSide; // front or back
+    const showBoth = state.studySettings.showBoth;
+
+    const frontEl = document.getElementById('study-front');
+    const backEl = document.getElementById('study-back');
+
+    if (side === 'back') {
+        frontEl.textContent = card.back;
+        backEl.textContent = card.front;
+    } else {
+        frontEl.textContent = card.front;
+        backEl.textContent = card.back;
+    }
+
+    if (showBoth) {
+        // If show both, we can append the other side to the front
+        frontEl.innerHTML = `<div>${renderContent(side === 'back' ? card.back : card.front)}</div>
+                             <hr style="margin: 1rem 0; border: 0; border-top: 1px dashed var(--border);">
+                             <div>${renderContent(side === 'back' ? card.front : card.back)}</div>`;
+        backEl.textContent = ""; // Empty back if shown on front? Or just duplicate.
+    } else {
+        frontEl.textContent = side === 'back' ? card.back : card.front;
+        renderMath(frontEl);
+        renderMath(backEl);
+    }
+
+    // Update Progress Text
+    document.getElementById('study-progress-text').textContent = `${state.currentCardIndex + 1} / ${state.studyQueue.length}`;
+
+    // Update Progress Bar
+    const pct = ((state.currentCardIndex) / state.studyQueue.length) * 100;
+    document.getElementById('study-progress-bar').style.width = `${pct}%`;
+
+    // Make state reset instant
+    flashcard.style.transition = 'none';
     flashcard.classList.remove('is-flipped');
     state.isFlipped = false;
-    document.getElementById('study-controls').classList.add('hidden');
-    renderMath(document.getElementById('study-front'));
-    renderMath(document.getElementById('study-back'));
+    void flashcard.offsetWidth; // force reflow
+    flashcard.style.transition = '';
 
-    // Apply Settings
-    const progressEl = document.getElementById('study-progress');
-    if (state.settings.showProgress === false) {
-        progressEl.style.opacity = '0';
-    } else {
-        progressEl.style.opacity = '1';
+    // Hide controls initially
+    toggleStudyControls(false);
+
+    // Fade in animation
+    if (animate && !state.settings.reducedMotion) {
+        flashcard.classList.remove('fading-out');
+        flashcard.classList.add('anim-in');
+        setTimeout(() => flashcard.classList.remove('anim-in'), 400);
     }
 
     if (state.game.timer) clearTimeout(state.game.timer);
@@ -2460,8 +2668,22 @@ function showNextCard() {
     }
 }
 
+function prevCard() {
+    if (state.currentCardIndex > 0) {
+        state.currentCardIndex--;
+        showNextCard();
+    } else {
+        showToast('This is the first card', 'info');
+    }
+}
+
+
 // Flip/Rate Interactions (Reuse existing logic mostly)
-document.getElementById('active-flashcard').addEventListener('click', flipCard);
+const activeFlashcard = document.getElementById('active-flashcard');
+if (activeFlashcard) {
+    activeFlashcard.addEventListener('click', flipCard);
+}
+
 document.body.addEventListener('keydown', (e) => {
     if (!document.getElementById('study-view').classList.contains('hidden')) {
         if (e.code === 'Space' || e.code === 'Enter') {
@@ -2472,12 +2694,123 @@ document.body.addEventListener('keydown', (e) => {
     }
 });
 
+
 function flipCard() {
-    if (state.game.timer) clearTimeout(state.game.timer); // Clear auto-flip
-    document.getElementById('active-flashcard').classList.add('is-flipped');
-    state.isFlipped = true;
-    setTimeout(() => document.getElementById('study-controls').classList.remove('hidden'), 200);
+    if (state.game.timer) clearTimeout(state.game.timer);
+    const cardElement = document.getElementById('active-flashcard');
+
+    if (state.isFlipped) {
+        cardElement.classList.remove('is-flipped');
+        state.isFlipped = false;
+        toggleStudyControls(false);
+    } else {
+        cardElement.classList.add('is-flipped');
+        state.isFlipped = true;
+        // Show appropriate controls after a small delay for animation
+        setTimeout(() => toggleStudyControls(true), 200);
+    }
 }
+
+function toggleStudyControls(show) {
+    const controls = document.getElementById('study-controls');
+    const noTrackControls = document.getElementById('study-controls-no-track');
+
+    if (show) {
+        if (state.studySettings.trackProgress) {
+            controls.classList.remove('hidden');
+            noTrackControls.classList.add('hidden');
+        } else {
+            controls.classList.add('hidden');
+            noTrackControls.classList.remove('hidden');
+        }
+    } else {
+        controls.classList.add('hidden');
+        noTrackControls.classList.add('hidden');
+    }
+}
+
+const prevBtn = document.getElementById('study-prev-btn');
+if (prevBtn) {
+    prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        prevCard();
+    });
+}
+
+
+// Settings Handlers
+const settingsBtn = document.getElementById('study-settings-btn');
+if (settingsBtn) {
+    settingsBtn.onclick = () => {
+        openModal('study-settings-modal');
+    };
+}
+
+
+const trackToggle = document.getElementById('study-track-progress-toggle');
+if (trackToggle) {
+    trackToggle.onchange = (e) => {
+        state.studySettings.trackProgress = e.target.checked;
+        const subToggle = document.getElementById('setting-track-progress');
+        if (subToggle) subToggle.checked = e.target.checked;
+        if (state.isFlipped) {
+            toggleStudyControls(e.target.checked);
+        }
+    };
+}
+
+
+const sTrackProgress = document.getElementById('setting-track-progress');
+if (sTrackProgress) {
+    sTrackProgress.onchange = (e) => {
+        state.studySettings.trackProgress = e.target.checked;
+        const mainToggle = document.getElementById('study-track-progress-toggle');
+        if (mainToggle) mainToggle.checked = e.target.checked;
+    };
+}
+
+const sStudyStarred = document.getElementById('setting-study-starred');
+if (sStudyStarred) {
+    sStudyStarred.onchange = (e) => {
+        state.studySettings.studyStarred = e.target.checked;
+    };
+}
+
+const sCardSide = document.getElementById('setting-card-side');
+if (sCardSide) {
+    sCardSide.onchange = (e) => {
+        state.studySettings.cardSide = e.target.value;
+        showNextCard();
+    };
+}
+
+const sShowBoth = document.getElementById('setting-show-both');
+if (sShowBoth) {
+    sShowBoth.onchange = (e) => {
+        state.studySettings.showBoth = e.target.checked;
+        showNextCard();
+    };
+}
+
+
+const restartBtn = document.getElementById('restart-flashcards-btn');
+if (restartBtn) {
+    restartBtn.onclick = () => {
+        closeModal();
+        if (confirm("Restart this study session?")) {
+            startStudySession(true);
+        }
+    };
+}
+
+const questionsBtn = document.getElementById('study-questions-btn');
+if (questionsBtn) {
+    questionsBtn.onclick = () => {
+        showToast("Question mode coming soon!", "info");
+    };
+}
+
+
 
 document.querySelectorAll('.btn-rate').forEach(btn => {
     btn.addEventListener('click', () => rateCard(parseInt(btn.dataset.rating)));
@@ -2486,6 +2819,9 @@ document.querySelectorAll('.btn-rate').forEach(btn => {
 async function rateCard(rating) {
     const card = state.studyQueue[state.currentCardIndex];
     const isOwner = state.user && state.decks.some(d => d.id === card.deck_id);
+
+    // Track locally for session summary
+    state.sessionRatings.push({ cardId: card.id, rating: rating, card: card });
 
     // Only save progress if it's my deck
     if (isOwner) {
@@ -2529,14 +2865,81 @@ async function rateCard(rating) {
         }).eq('id', card.id);
     }
 
+    // Update local card object for accurate summary stats
+    card.interval_days = interval_days;
+    card.ease_factor = ease_factor;
+    card.reviews_count = reviews_count;
+    card.last_reviewed = new Date();
+    card.due_at = due_at;
+
     state.currentCardIndex++;
     showNextCard();
 }
 
-function finishStudySession() {
+async function finishStudySession() {
     switchView('study-summary-view');
     document.getElementById('summary-count').textContent = state.studyQueue.length;
+    document.getElementById('study-progress-bar').style.width = '100%';
+    document.getElementById('study-progress-text').textContent = `${state.studyQueue.length} / ${state.studyQueue.length}`;
+
+    // Calculate session stats for suggestions
+    const hardCards = state.sessionRatings.filter(r => r.rating <= 2);
+    const goodCards = state.sessionRatings.filter(r => r.rating >= 3);
+
+    // Update counts in UI
+    const hardCountEl = document.getElementById('hard-cards-count');
+    const goodCountEl = document.getElementById('good-cards-count');
+    if (hardCountEl) hardCountEl.textContent = hardCards.length;
+    if (goodCountEl) goodCountEl.textContent = goodCards.length;
+
+    // Suggestion logic
+    const retryHardBtn = document.getElementById('retry-hard-cards-btn');
+    const retryGoodBtn = document.getElementById('retry-good-cards-btn');
+
+    if (retryHardBtn) {
+        retryHardBtn.classList.toggle('hidden', hardCards.length === 0);
+        retryHardBtn.onclick = () => {
+            state.studyQueue = hardCards.map(r => r.card);
+            state.currentCardIndex = 0;
+            state.sessionRatings = [];
+            switchView('study-view');
+            showNextCard(false);
+        };
+    }
+
+    if (retryGoodBtn) {
+        retryGoodBtn.classList.toggle('hidden', goodCards.length === 0);
+        retryGoodBtn.onclick = () => {
+            state.studyQueue = goodCards.map(r => r.card);
+            state.currentCardIndex = 0;
+            state.sessionRatings = [];
+            switchView('study-view');
+            showNextCard(false);
+        };
+    }
+
+    const newSessionBtn = document.getElementById('new-study-session-btn');
+    if (newSessionBtn) {
+        newSessionBtn.onclick = () => startStudySession(true);
+    }
+
+    // Extended Stats
+    if (state.currentDeck) {
+        const total = state.cards.length;
+        // Count from all cards in state (not just studied ones)
+        const mastered = state.cards.filter(c => c.interval_days >= 3).length;
+        const learning = total - mastered;
+
+        const masteryEl = document.getElementById('summary-deck-progress');
+        if (masteryEl) masteryEl.textContent = total > 0 ? Math.round((mastered / total) * 100) + '%' : '0%';
+
+        const learnCountEl = document.getElementById('summary-learning-count');
+        const knownCountEl = document.getElementById('summary-known-count');
+        if (learnCountEl) learnCountEl.textContent = `${learning} / ${total}`;
+        if (knownCountEl) knownCountEl.textContent = `${mastered} / ${total}`;
+    }
 }
+
 function exitStudyMode() {
     const target = state.studyOrigin || 'decks-view';
 
@@ -2551,8 +2954,16 @@ function exitStudyMode() {
     }
 }
 
-document.getElementById('back-to-deck-btn').addEventListener('click', exitStudyMode);
-document.getElementById('quit-study-btn').addEventListener('click', exitStudyMode);
+const backToDeckBtn = document.getElementById('back-to-deck-btn');
+if (backToDeckBtn) {
+    backToDeckBtn.addEventListener('click', exitStudyMode);
+}
+
+const quitStudyBtn = document.getElementById('quit-study-btn');
+if (quitStudyBtn) {
+    quitStudyBtn.addEventListener('click', exitStudyMode);
+}
+
 
 // --- GROUPS LOGIC ---
 
@@ -2647,6 +3058,12 @@ document.getElementById('join-group-form').addEventListener('submit', async (e) 
 
 // Group Details
 async function openGroup(group) {
+    // Track origin for back button
+    const validOrigins = ['groups-view', 'community-view', 'today-view'];
+    if (validOrigins.includes(state.lastView)) {
+        state.groupOrigin = state.lastView;
+    }
+
     state.currentGroup = group;
     document.getElementById('group-detail-title').textContent = group.name;
     document.getElementById('group-invite-code').textContent = group.invite_code;
@@ -2654,8 +3071,6 @@ async function openGroup(group) {
     state.isGroupAdmin = (group.myRole === 'admin');
 
     // Toggle "New Deck" button based on role
-    // Admins can create decks? Or anyone? RLS says "Group members can insert decks".
-    // So anyone can create.
     document.getElementById('create-group-deck-btn').style.display = 'block';
 
     // Admin Controls
@@ -2703,8 +3118,11 @@ async function kickMember(userId, groupId) {
 }
 
 document.getElementById('back-to-groups-btn').onclick = () => {
-    switchView('groups-view');
-    loadGroups();
+    const target = state.groupOrigin || 'groups-view';
+    switchView(target);
+    if (target === 'groups-view') loadGroups();
+    else if (target === 'community-view') loadCommunityDecks();
+    else if (target === 'today-view') loadTodayView();
 };
 
 document.getElementById('copy-invite-btn').onclick = () => {
@@ -2883,6 +3301,7 @@ document.getElementById('create-group-deck-btn').onclick = () => {
 
 document.getElementById('play-game-btn').addEventListener('click', () => {
     if (!state.currentDeck) return;
+    state.gameOrigin = state.lastView; // Track origin
     switchView('game-view');
     document.getElementById('game-menu').classList.remove('hidden');
     document.getElementById('match-game-area').classList.add('hidden');
@@ -2893,7 +3312,7 @@ document.getElementById('play-game-btn').addEventListener('click', () => {
 
 document.getElementById('quit-game-area-btn').addEventListener('click', () => {
     stopGame();
-    switchView('deck-view');
+    switchView(state.gameOrigin || 'deck-view');
 });
 
 function stopGame() {
@@ -3651,34 +4070,46 @@ window.removeDeckFromGroup = async (deckId) => {
     }
 };
 
-document.getElementById('share-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('share-email').value;
-    const role = document.getElementById('share-role').value;
+const shareForm = document.getElementById('share-form');
+if (shareForm) {
+    shareForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const emailInput = document.getElementById('share-email');
+        const roleInput = document.getElementById('share-role');
+        if (!emailInput || !roleInput) return;
 
-    const { error } = await sb.from('deck_shares').insert([{
-        deck_id: state.currentDeck.id,
-        user_email: email,
-        role: role
-    }]);
+        const email = emailInput.value;
+        const role = roleInput.value;
 
-    if (error) return showToast(error.message, 'error');
+        const { error } = await sb.from('deck_shares').insert([{
+            deck_id: state.currentDeck.id,
+            user_email: email,
+            role: role
+        }]);
 
-    showToast(`Shared with ${email}`);
-    document.getElementById('share-email').value = '';
-    updateShareUI();
-});
+        if (error) return showToast(error.message, 'error');
 
-document.getElementById('toggle-share-public-btn').addEventListener('click', async () => {
-    const isPublic = !state.currentDeck.is_public;
-    const { error } = await sb.from('decks').update({ is_public: isPublic }).eq('id', state.currentDeck.id);
+        showToast(`Shared with ${email}`);
+        emailInput.value = '';
+        updateShareUI();
+    });
+}
 
-    if (error) return showToast(error.message, 'error');
 
-    state.currentDeck.is_public = isPublic;
-    showToast(`Deck is now ${isPublic ? 'Public' : 'Restricted'}`);
-    updateShareUI();
-});
+const toggleShareBtn = document.getElementById('toggle-share-public-btn');
+if (toggleShareBtn) {
+    toggleShareBtn.addEventListener('click', async () => {
+        const isPublic = !state.currentDeck.is_public;
+        const { error } = await sb.from('decks').update({ is_public: isPublic }).eq('id', state.currentDeck.id);
+
+        if (error) return showToast(error.message, 'error');
+
+        state.currentDeck.is_public = isPublic;
+        showToast(`Deck is now ${isPublic ? 'Public' : 'Restricted'}`);
+        updateShareUI();
+    });
+}
+
 
 window.removeShare = async (id) => {
     const { error } = await sb.from('deck_shares').delete().eq('id', id);
@@ -3686,10 +4117,14 @@ window.removeShare = async (id) => {
     else updateShareUI();
 };
 
-document.getElementById('copy-share-link-modal').addEventListener('click', () => {
-    const url = window.location.href.split('?')[0] + `?deck=${state.currentDeck.id}`;
-    navigator.clipboard.writeText(url).then(() => showToast('Link copied!'));
-});
+const copyLinkBtn = document.getElementById('copy-share-link-modal');
+if (copyLinkBtn) {
+    copyLinkBtn.addEventListener('click', () => {
+        const url = window.location.href.split('?')[0] + `?deck=${state.currentDeck.id}`;
+        navigator.clipboard.writeText(url).then(() => showToast('Link copied!'));
+    });
+}
+
 
 // --- Bulk Add Logic ---
 document.getElementById('bulk-add-form').addEventListener('submit', async (e) => {
@@ -3798,6 +4233,15 @@ checkUser();
             if (dropdownMenu) dropdownMenu.classList.add('hidden');
             const csvInput = document.getElementById('csv-upload');
             if (csvInput) csvInput.click();
+        });
+    }
+
+    // Continue button for non-tracking study
+    const continueBtn = document.getElementById('study-continue-btn');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', () => {
+            state.currentCardIndex++;
+            showNextCard();
         });
     }
 })();

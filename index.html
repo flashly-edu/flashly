@@ -712,15 +712,29 @@
                     <!-- Study Mode View -->
                     <section id="study-view" class="view hidden">
                         <div class="study-header">
-                            <button id="quit-study-btn" class="btn btn-text">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                    class="icon-sm">
-                                    <path
-                                        d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                                </svg>
-                                Quit
-                            </button>
-                            <span id="study-progress">10 remaining</span>
+                            <div class="study-header-left">
+                                <button id="quit-study-btn" class="btn btn-circular"
+                                    style="scale: 1.2; border-radius: 25px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="size-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                    </svg>
+
+                                </button>
+                            </div>
+                            <div class="study-header-center">
+                                <span id="study-progress-text">1 / 10</span>
+                                <span id="study-deck-title" class="study-deck-title">Deck Title</span>
+                            </div>
+                            <div class="study-header-right">
+                                <button id="study-questions-btn" class="btn btn-secondary btn-sm"
+                                    style="display: none;">Turn into
+                                    Questions</button>
+
+                            </div>
+                            <div class="study-progress-bar-container">
+                                <div id="study-progress-bar" class="study-progress-fill" style="width: 0%"></div>
+                            </div>
                         </div>
 
                         <div class="study-container">
@@ -736,24 +750,48 @@
                                 </div>
                             </div>
 
-                            <div class="study-actions"
-                                style="display:flex; justify-content:center; align-items:center; gap: 1rem; margin-top: 1.5rem;">
-                                <button id="shuffle-study-btn" class="btn-circular" title="Shuffle remaining cards"
-                                    style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background-color: var(--bg-secondary); border: none; cursor: pointer;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke-width="1.5" stroke="currentColor" class="icon-sm">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                    </svg>
-                                </button>
-                                <button id="fullscreen-study-btn" class="btn-circular" title="Toggle Fullscreen"
-                                    style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background-color: var(--bg-secondary); border: none; cursor: pointer;">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke-width="1.5" stroke="currentColor" class="icon-sm">
-                                        <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                                    </svg>
-                                </button>
+                            <div class="study-actions-bar">
+                                <div class="study-actions-left">
+                                    <label class="pill-toggle" style="padding: 0.5rem; padding-right: 1rem;">
+                                        <input type="checkbox" id="study-track-progress-toggle" checked>
+                                        <div class="pill-track">
+                                            <span class="pill-knob"></span>
+                                        </div>
+                                        <span class="pill-label">Track Progress</span>
+                                    </label>
+                                </div>
+                                <div class="study-actions-right">
+                                    <button id="study-prev-btn" class="btn-circular" title="Previous Card">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                                        </svg>
+                                    </button>
+                                    <button id="shuffle-study-btn" class="btn-circular" title="Shuffle remaining cards">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                        </svg>
+                                    </button>
+                                    <button id="study-settings-btn" class="btn-circular" title="Study Options">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.894.15c.542.09.94.56.94 1.109v1.094c0 .55-.398 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527a1.125 1.125 0 01-1.449-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15a1.125 1.125 0 01-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </button>
+                                    <button id="fullscreen-study-btn" class="btn-circular" title="Toggle Fullscreen">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="study-controls hidden" id="study-controls">
@@ -774,621 +812,837 @@
                                     <span class="rate-time">7d</span>
                                 </button>
                             </div>
+
+                            <div class="study-controls hidden" id="study-controls-no-track"
+                                style="justify-content: center;">
+                                <button id="study-continue-btn" class="btn btn-primary btn-lg"
+                                    style="min-width: 200px;">
+                                    Continue
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Study settings moved to global modals -->
+
                     </section>
 
                     <!-- Study Summary View -->
                     <section id="study-summary-view" class="view hidden">
-                        <div class="summary-container">
-                            <h2>Session Complete!</h2>
-                            <div class="summary-stats">
-                                <div class="stat-item">
-                                    <span class="stat-val" id="summary-count">0</span>
-                                    <span class="stat-label">Cards Studied</span>
+                        <div class="summary-container card" style="max-width: 600px; padding: 3rem;">
+                            <div class="summary-header" style="margin-bottom: 2rem;">
+                                <div class="success-icon"
+                                    style="width: 64px; height: 64px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M4.5 12.75l6 6 9-13.5" />
+                                    </svg>
+                                </div>
+                                <h2 style="font-size: 2rem; margin-bottom: 0.5rem;">Session Complete!</h2>
+                                <p class="text-secondary">Great work! You've made progress today.</p>
+                            </div>
+
+                            <div class="summary-stats-grid"
+                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
+                                <div class="summary-stat-box"
+                                    style="background: var(--background); padding: 1.5rem; border-radius: 1rem; text-align: center;">
+                                    <div id="summary-count"
+                                        style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">0</div>
+                                    <div class="text-xs text-secondary uppercase font-bold tracking-wider">Studied</div>
+                                </div>
+                                <div class="summary-stat-box"
+                                    style="background: var(--background); padding: 1.5rem; border-radius: 1rem; text-align: center;">
+                                    <div id="summary-deck-progress"
+                                        style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">0%</div>
+                                    <div class="text-xs text-secondary uppercase font-bold tracking-wider">Deck Mastery
+                                    </div>
                                 </div>
                             </div>
-                            <button id="back-to-deck-btn" class="btn btn-primary">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="icon-sm">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                                </svg>
-                                Back to Deck
+
+                            <div id="summary-suggestions" style="text-align: left; margin-bottom: 2.5rem;">
+                                <h4 class="text-xs font-bold text-secondary uppercase tracking-wider mb-4">Recommended
+                                    Next Steps</h4>
+                                <div class="suggestion-list"
+                                    style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    <button id="retry-hard-cards-btn" class="btn btn-secondary w-full hidden"
+                                        style="justify-content: flex-start; padding: 1rem;">
+                                        <span
+                                            style="background: var(--danger); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem;"></span>
+                                        Revise Hard Cards (<span id="hard-cards-count">0</span>)
+                                    </button>
+                                    <button id="retry-good-cards-btn" class="btn btn-secondary w-full hidden"
+                                        style="justify-content: flex-start; padding: 1rem;">
+                                        <span
+                                            style="background: var(--success); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem;"></span>
+                                        Revise Known Cards (<span id="good-cards-count">0</span>)
+                                    </button>
+                                    <button id="new-study-session-btn" class="btn btn-primary w-full"
+                                        style="justify-content: flex-start; padding: 1.25rem;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm"
+                                            style="margin-right: 0.5rem;">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 4.5v15m7.5-7.5h-15" />
+                                        </svg>
+                                        Start New Session
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="session-info-stats"
+                                style="margin-bottom: 2.5rem; text-align: left; background: var(--surface-hover); padding: 1.5rem; border-radius: 1rem;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span class="text-sm font-medium">Learning Cards</span>
+                                    <span id="summary-learning-count" class="text-sm font-bold">0</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span class="text-sm font-medium">Known Cards</span>
+                                    <span id="summary-known-count" class="text-sm font-bold">0</span>
+                                </div>
+                            </div>
+
+                            <button id="back-to-deck-btn" class="btn btn-text w-full">
+                                Return to Deck
                             </button>
                         </div>
                     </section>
-            </main>
-            <!-- End Page Container -->
-        </div>
-        </main>
-    </div>
+                </div> <!-- End Page Container -->
+            </main> <!-- End Main Content -->
+        </div> <!-- End Main Layout -->
 
-    <!-- Modals -->
-    <div id="modal-overlay" class="modal-overlay hidden">
-        <!-- Create Deck Modal -->
-        <div id="create-deck-modal" class="modal hidden">
-            <h3>Create New Deck</h3>
-            <form id="create-deck-form">
-                <div class="input-group">
-                    <label>Title</label>
-                    <input type="text" id="new-deck-title" required>
+        <!-- Modals -->
+        <div id="modal-overlay" class="modal-overlay hidden">
+            <!-- Guest Preview Modal (Gates deep links) -->
+            <div id="guest-preview-modal" class="modal hidden"
+                style="z-index: 2000; text-align: center; padding: 3rem; transform: translateY(0); animation: slideDown 0.4s ease-out; background: var(--surface); max-width: 480px;">
+                <div id="guest-preview-icon"
+                    style="width: 80px; height: 80px; background: var(--primary-light); color: var(--primary); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                    <!-- Icon injected -->
                 </div>
-                <div class="input-group">
-                    <label>Description (optional)</label>
-                    <textarea id="new-deck-desc" rows="2"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create</button>
-                </div>
-            </form>
-        </div>
+                <h2 id="guest-preview-title"
+                    style="font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.5rem;">Join
+                    this
+                    Deck</h2>
+                <p id="guest-preview-subtitle" class="text-secondary mb-8">Unlock this content and start learning today.
+                </p>
 
-        <!-- Create/Edit Card Modal -->
-        <div id="card-modal" class="modal hidden">
-            <h3 id="card-modal-title">Add Card</h3>
-            <form id="card-form">
-                <input type="hidden" id="card-id">
-                <div class="input-group">
-                    <label>Front</label>
-                    <textarea id="card-front-input" rows="3" required></textarea>
+                <div id="guest-preview-details"
+                    style="background: var(--background); border-radius: var(--radius); padding: 1.5rem; margin-top: 1rem; margin-bottom: 2rem; text-align: left; border: 1px solid var(--border);">
+                    <div id="guest-preview-meta" class="text-sm font-medium text-secondary">Loading details...</div>
                 </div>
-                <div class="input-group">
-                    <label>Back</label>
-                    <textarea id="card-back-input" rows="3" required></textarea>
-                </div>
-                <div class="input-group">
-                    <label>Tags (comma separated)</label>
-                    <input type="text" id="card-tags-input" placeholder="e.g. difficult, math, verb">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
-                </div>
-            </form>
-        </div>
 
-        <!-- Custom Study Modal -->
-        <div id="custom-study-modal" class="modal hidden">
-            <h3>Custom Study Session</h3>
-            <form id="custom-study-form">
-                <div class="input-group">
-                    <label>Filter by Tag</label>
-                    <select id="custom-study-tag-filter">
-                        <option value="">All Tags</option>
-                    </select>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    <button class="btn btn-primary btn-lg w-full btn-signup-toggle">Sign up to Access</button>
+                    <button class="btn btn-secondary btn-lg w-full btn-login-toggle">Already have an account? Log in</button>
                 </div>
-                <div class="input-group">
-                    <label>Max Cards</label>
-                    <input type="number" id="custom-study-limit" value="20" min="5" max="100">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Start</button>
-                </div>
-            </form>
-        </div>
 
-        <!-- Settings Modal -->
-        <div id="settings-modal" class="modal hidden"
-            style="max-width: 850px; width: 95%; padding: 0; overflow: hidden; display: flex; flex-direction: row; height: 600px; max-height: 90vh;">
-            <!-- Settings Sidebar -->
-            <div class="settings-sidebar"
-                style="width: 240px; background: var(--background); border-right: 1px solid var(--border); padding: 1.5rem 0; display: flex; flex-direction: column;">
-                <div
-                    style="padding: 0 1.5rem 1.25rem 1.5rem; font-size: 0.75rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">
-                    User Settings</div>
-                <nav class="settings-nav">
-                    <button class="settings-tab-btn active" data-tab="settings-account">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                        </svg>
-                        Account
-                    </button>
-                    <button class="settings-tab-btn" data-tab="settings-appearance">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 003.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
-                        </svg>
-                        Appearance
-                    </button>
-                    <button class="settings-tab-btn" data-tab="settings-study">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-                        </svg>
-                        Study Preferences
-                    </button>
-                    <button class="settings-tab-btn" data-tab="settings-stats">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                        </svg>
-                        Learning Stats
-                    </button>
-                    <button class="settings-tab-btn" data-tab="settings-about">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                            stroke="currentColor" class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                        </svg>
-                        About Flashly
-                    </button>
-                </nav>
-                <div style="flex: 1;"></div>
-                <div style="padding: 1.5rem; border-top: 1px solid var(--border);">
-                    <button id="logout-btn" class="btn btn-text btn-sm btn-full text-danger"
-                        style="justify-content: flex-start; padding: 0.75rem;">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                            class="icon-xs">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                        </svg>
-                        Log Out
-                    </button>
-                </div>
+                <button class="btn btn-text mt-6 text-sm"
+                    onclick="document.getElementById('guest-preview-modal').classList.add('hidden'); document.getElementById('modal-overlay').classList.add('hidden')">Maybe
+                    later</button>
             </div>
 
-            <!-- Settings Content -->
-            <div class="settings-main"
-                style="flex: 1; padding: 2.5rem; overflow-y: auto; background: var(--surface); position: relative;">
-                <button class="btn-icon-only close-modal" style="position: absolute; top: 1.5rem; right: 1.5rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                        stroke="currentColor" class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-
-                <!-- Account Tab -->
-                <div id="settings-account" class="settings-tab-view">
-                    <h2 class="text-xl font-bold mb-6">Account</h2>
-
-                    <div class="profile-header mb-8" style="display: flex; align-items: center; gap: 1.5rem;">
-                        <div id="settings-profile-avatar" class="avatar-large"
-                            style="width: 80px; height: 80px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; border: 4px solid var(--surface); box-shadow: var(--shadow-sm);">
-                            U
+            <!-- Study Settings Modal -->
+            <div id="study-settings-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h3>Study Options</h3>
+                    <button class="modal-close" onclick="closeModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-card">
+                        <label class="settings-label">Progress & Tracking</label>
+                        <div class="flex justify-between items-center mb-4">
+                            <div>
+                                <div class="font-bold text-sm">Track Progress</div>
+                                <div class="text-xs text-secondary">Record scores for long-term memory</div>
+                            </div>
+                            <label class="pill-toggle">
+                                <input type="checkbox" id="setting-track-progress">
+                                <div class="pill-track"><span class="pill-knob"></span></div>
+                            </label>
                         </div>
-                        <div class="profile-info">
-                            <h3 id="settings-display-name" class="text-lg font-semibold" style="margin: 0;">Username
-                            </h3>
-                            <p id="settings-display-email" class="text-secondary text-sm" style="margin: 0;">
-                                user@example.com</p>
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <div class="font-bold text-sm">Study Starred Only</div>
+                                <div class="text-xs text-secondary">Focus on your marked terms</div>
+                            </div>
+                            <label class="pill-toggle">
+                                <input type="checkbox" id="setting-study-starred">
+                                <div class="pill-track"><span class="pill-knob"></span></div>
+                            </label>
                         </div>
                     </div>
 
-                    <form id="settings-form">
-                        <div class="input-group mb-4">
+                    <div class="settings-card">
+                        <label class="settings-label">Card Display</label>
+                        <div class="settings-row">
+                            <label class="text-xs font-semibold text-secondary mb-2 block">Card Orientation</label>
+                            <select id="setting-card-side" class="select-input">
+                                <option value="front">Front (Term)</option>
+                                <option value="back">Back (Definition)</option>
+                            </select>
+                        </div>
+                        <div class="flex justify-between items-center mt-6">
+                            <div>
+                                <div class="font-bold text-sm">Show Both Sides</div>
+                                <div class="text-xs text-secondary">Display term and definition together</div>
+                            </div>
+                            <label class="pill-toggle">
+                                <input type="checkbox" id="setting-show-both">
+                                <div class="pill-track"><span class="pill-knob"></span></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 1.5rem;">
+                        <button class="btn btn-primary w-full"
+                            style="height: 48px; border-radius: 12px; font-weight: 700;" id="restart-flashcards-btn">
+                            Restart Flashcards
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Create Deck Modal -->
+            <div id="create-deck-modal" class="modal hidden">
+                <h3>Create New Deck</h3>
+                <form id="create-deck-form">
+                    <div class="input-group">
+                        <label>Title</label>
+                        <input type="text" id="new-deck-title" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Description (optional)</label>
+                        <textarea id="new-deck-desc" rows="2"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Create/Edit Card Modal -->
+            <div id="card-modal" class="modal hidden">
+                <h3 id="card-modal-title">Add Card</h3>
+                <form id="card-form">
+                    <input type="hidden" id="card-id">
+                    <div class="input-group">
+                        <label>Front</label>
+                        <textarea id="card-front-input" rows="3" required></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Back</label>
+                        <textarea id="card-back-input" rows="3" required></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Tags (comma separated)</label>
+                        <input type="text" id="card-tags-input" placeholder="e.g. difficult, math, verb">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Custom Study Modal -->
+            <div id="custom-study-modal" class="modal hidden">
+                <h3>Custom Study Session</h3>
+                <form id="custom-study-form">
+                    <div class="input-group">
+                        <label>Filter by Tag</label>
+                        <select id="custom-study-tag-filter">
+                            <option value="">All Tags</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Max Cards</label>
+                        <input type="number" id="custom-study-limit" value="20" min="5" max="100">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Start</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Settings Modal -->
+            <div id="settings-modal" class="modal hidden"
+                style="max-width: 850px; width: 95%; padding: 0; overflow: hidden; display: flex; flex-direction: row; height: 600px; max-height: 90vh;">
+                <!-- Settings Sidebar -->
+                <div class="settings-sidebar"
+                    style="width: 240px; background: var(--background); border-right: 1px solid var(--border); padding: 1.5rem 0; display: flex; flex-direction: column;">
+                    <div
+                        style="padding: 0 1.5rem 1.25rem 1.5rem; font-size: 0.75rem; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">
+                        User Settings</div>
+                    <nav class="settings-nav">
+                        <button class="settings-tab-btn active" data-tab="settings-account">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                            </svg>
+                            Account
+                        </button>
+                        <button class="settings-tab-btn" data-tab="settings-appearance">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 003.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
+                            </svg>
+                            Appearance
+                        </button>
+                        <button class="settings-tab-btn" data-tab="settings-study">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                            </svg>
+                            Study Preferences
+                        </button>
+                        <button class="settings-tab-btn" data-tab="settings-stats">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                            </svg>
+                            Learning Stats
+                        </button>
+                        <button class="settings-tab-btn" data-tab="settings-about">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                            </svg>
+                            About Flashly
+                        </button>
+                    </nav>
+                    <div style="flex: 1;"></div>
+                    <div style="padding: 1.5rem; border-top: 1px solid var(--border);">
+                        <button id="logout-btn" class="btn btn-text btn-sm btn-full text-danger"
+                            style="justify-content: flex-start; padding: 0.75rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" class="icon-xs">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                            </svg>
+                            Log Out
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings Content -->
+                <div class="settings-main"
+                    style="flex: 1; padding: 2.5rem; overflow-y: auto; background: var(--surface); position: relative;">
+                    <button class="btn-icon-only close-modal" style="position: absolute; top: 1.5rem; right: 1.5rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    <!-- Account Tab -->
+                    <div id="settings-account" class="settings-tab-view">
+                        <h2 class="text-xl font-bold mb-6">Account</h2>
+
+                        <div class="profile-header mb-8" style="display: flex; align-items: center; gap: 1.5rem;">
+                            <div id="settings-profile-avatar" class="avatar-large"
+                                style="width: 80px; height: 80px; border-radius: 50%; background: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; border: 4px solid var(--surface); box-shadow: var(--shadow-sm);">
+                                U
+                            </div>
+                            <div class="profile-info">
+                                <h3 id="settings-display-name" class="text-lg font-semibold" style="margin: 0;">Username
+                                </h3>
+                                <p id="settings-display-email" class="text-secondary text-sm" style="margin: 0;">
+                                    user@example.com</p>
+                            </div>
+                        </div>
+
+                        <form id="settings-form">
+                            <div class="input-group mb-4">
+                                <label
+                                    class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Username</label>
+                                <input type="text" id="settings-username" required placeholder="Enter your username">
+                            </div>
+
+                            <div class="input-group mb-6">
+                                <label
+                                    class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Email
+                                    Address</label>
+                                <input type="email" id="settings-email-readonly" readonly
+                                    style="background: var(--background); cursor: not-allowed; color: var(--text-tertiary);">
+                                <p class="text-xs text-secondary mt-2">Email cannot be changed yet.</p>
+                            </div>
+
+                            <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Appearance Tab -->
+                    <div id="settings-appearance" class="settings-tab-view hidden">
+                        <h2 class="text-xl font-bold mb-6">Appearance</h2>
+
+                        <div class="settings-section mb-8">
                             <label
-                                class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Username</label>
-                            <input type="text" id="settings-username" required placeholder="Enter your username">
+                                class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Theme</label>
+                            <div class="theme-options-grid"
+                                style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                                <div class="theme-option active" data-theme="light"
+                                    style="border: 2px solid var(--primary); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: var(--surface);">
+                                    <div
+                                        style="height: 40px; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
+                                    </div>
+                                    <span class="text-sm font-medium">Light</span>
+                                </div>
+                                <div class="theme-option" data-theme="dark"
+                                    style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #1e293b; color: #f8fafc;">
+                                    <div
+                                        style="height: 40px; background: #0f172a; border-radius: 4px; border: 1px solid #334155; margin-bottom: 0.5rem;">
+                                    </div>
+                                    <span class="text-sm font-medium">Dark</span>
+                                </div>
+                                <div class="theme-option" data-theme="system"
+                                    style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #fff;">
+                                    <div
+                                        style="height: 40px; background: linear-gradient(135deg, #f8fafc 50%, #0f172a 50%); border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
+                                    </div>
+                                    <span class="text-sm font-medium">System</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="input-group mb-6">
-                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Email
-                                Address</label>
-                            <input type="email" id="settings-email-readonly" readonly
-                                style="background: var(--background); cursor: not-allowed; color: var(--text-tertiary);">
-                            <p class="text-xs text-secondary mt-2">Email cannot be changed yet.</p>
+                        <div class="settings-section">
+                            <label
+                                class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Interface
+                                Preferences</label>
+                            <div class="toggle-group" style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div>
+                                        <h4 class="text-sm font-medium">Reduced Motion</h4>
+                                        <p class="text-xs text-secondary">Disable card flip animations</p>
+                                    </div>
+                                    <input type="checkbox" id="settings-reduced-motion" class="toggle-switch">
+                                </div>
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div>
+                                        <h4 class="text-sm font-medium">Compact Sidebar</h4>
+                                        <p class="text-xs text-secondary">Hide labels in the side navigation</p>
+                                    </div>
+                                    <input type="checkbox" id="settings-compact-sidebar" class="toggle-switch">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Study Tab -->
+                    <div id="settings-study" class="settings-tab-view hidden">
+                        <h2 class="text-xl font-bold mb-6">Study Preferences</h2>
+
+                        <div class="settings-section mb-8">
+                            <div class="input-group mb-6">
+                                <label
+                                    class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Daily
+                                    Review Limit</label>
+                                <input type="number" id="settings-daily-limit" value="20" min="5" max="500"
+                                    style="max-width: 150px;">
+                                <p class="text-xs text-secondary mt-2">Maximum cards to study per session by default.
+                                </p>
+                            </div>
+
+                            <div class="input-group mb-6">
+                                <label
+                                    class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Default
+                                    Rating Separator</label>
+                                <input type="text" id="settings-default-separator" value="|" style="max-width: 80px;">
+                                <p class="text-xs text-secondary mt-2">Separator used for Bulk Add.</p>
+                            </div>
+
+                            <div class="toggle-group">
+                                <div
+                                    style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                                    <div>
+                                        <h4 class="text-sm font-medium">Auto-reveal Answer</h4>
+                                        <p class="text-xs text-secondary">Flip card automatically after 5 seconds</p>
+                                    </div>
+                                    <input type="checkbox" id="settings-auto-flip" class="toggle-switch">
+                                </div>
+                                <div style="display: flex; align-items: center; justify-content: space-between;">
+                                    <div>
+                                        <h4 class="text-sm font-medium">Show Progress Bar</h4>
+                                        <p class="text-xs text-secondary">Display a progress indicator during study</p>
+                                    </div>
+                                    <input type="checkbox" id="settings-show-progress" checked class="toggle-switch">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistics Tab -->
+                    <div id="settings-stats" class="settings-tab-view hidden">
+                        <h2 class="text-xl font-bold mb-6">Learning Statistics</h2>
+
+                        <div class="stats-overview-grid"
+                            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
+                            <div class="stat-card"
+                                style="padding: 1.5rem; background: var(--primary-light); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                                <span class="text-xs text-primary font-bold uppercase"
+                                    style="position: relative; z-index: 2;">Total Cards Mastered</span>
+                                <div id="settings-stat-mastered" class="text-3xl font-bold text-primary mt-1"
+                                    style="position: relative; z-index: 2;">0</div>
+                            </div>
+                            <div class="stat-card"
+                                style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                                <span class="text-xs text-success font-bold uppercase"
+                                    style="position: relative; z-index: 2;">Current Streak</span>
+                                <div id="settings-stat-streak" class="text-3xl font-bold text-success mt-1"
+                                    style="position: relative; z-index: 2;">0 days</div>
+                            </div>
+                            <div class="stat-card"
+                                style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                                <span class="text-xs text-warning font-bold uppercase"
+                                    style="position: relative; z-index: 2;">Total Reviews</span>
+                                <div id="settings-stat-reviews" class="text-3xl font-bold text-warning mt-1"
+                                    style="position: relative; z-index: 2;">0</div>
+                            </div>
+                            <div class="stat-card"
+                                style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
+                                <span class="text-xs font-bold uppercase"
+                                    style="position: relative; z-index: 2; color: var(--primary);">Decks Created</span>
+                                <div id="settings-stat-decks" class="text-3xl font-bold mt-1"
+                                    style="position: relative; z-index: 2; color: var(--primary);">0</div>
+                            </div>
                         </div>
 
-                        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border);">
+                        <div style="background: var(--background); border-radius: var(--radius); padding: 1.5rem;">
+                            <h4 class="text-sm font-semibold mb-2">Member Since</h4>
+                            <p id="settings-member-since" class="text-secondary text-base">January 2026</p>
+                        </div>
+                    </div>
+
+                    <!-- About Tab -->
+                    <div id="settings-about" class="settings-tab-view hidden">
+                        <div style="text-align: center; padding: 2rem 0;">
+                            <img src="./Assets/logo.png" alt="Flashly Logo"
+                                style="width: 80px; height: 80px; margin-bottom: 1.5rem;">
+                            <h2 class="text-2xl font-bold">Flashly</h2>
+                            <p class="text-secondary mb-8">Version 0.28-beta</p>
+
+                            <div
+                                style="max-width: 400px; margin: 0 auto; line-height: 1.6; color: var(--text-secondary);">
+                                <p class="mb-4">Flashly is an open-source spaced repetition system designed for speed,
+                                    focus, and collaboration.</p>
+                                <p>Build with ❤️ by focused students for focused students.</p>
+                            </div>
+
+                            <div class="mt-8 flex justify-center gap-4" style="text-decoration: none;">
+                                <a href="https://github.com/zandenkoh/flashly" class="btn btn-secondary btn-sm"
+                                    target="_blank" style="text-decoration: none;">Release notes</a>
+                                <a href="./support/index.html" class="btn btn-secondary btn-sm" target="_blank"
+                                    style="text-decoration: none;">Support</a>
+                                <a href="./privacy/index.html" class="btn btn-secondary btn-sm" target="_blank"
+                                    style="text-decoration: none;">Privacy Policy</a>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            <!-- Create Group Modal -->
+            <div id="create-group-modal" class="modal hidden">
+                <h3>Create New Group</h3>
+                <form id="create-group-form">
+                    <div class="input-group">
+                        <label>Group Name</label>
+                        <input type="text" id="new-group-name" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Join Group Modal -->
+            <div id="join-group-modal" class="modal hidden">
+                <h3>Join Group</h3>
+                <form id="join-group-form">
+                    <div class="input-group">
+                        <label>Invite Code</label>
+                        <input type="text" id="join-invite-code" placeholder="e.g. abcd1234..." required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Join</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Share Modal -->
+            <div id="share-modal" class="modal hidden">
+                <div class="modal-header"
+                    style="display: flex; flex-direction: row; align-items: center; white-space: nowrap; overflow-x: auto; flex-wrap: nowrap;">
+                    <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">
+                        Share "
+                        <span class="text-dim" id="share-deck-title" style="white-space: nowrap; margin: 0;">Deck
+                            Title</span>
+                        "
+                    </h3>
+                </div>
+
+                <form id="share-form" class="mt-4">
+                    <div class="input-group">
+                        <label style="margin-top: 10px;">Add people by email</label>
+                        <div style="display:flex; gap:0.5rem">
+                            <input type="email" id="share-email" placeholder="email@example.com" required
+                                style="flex:1">
+                            <select id="share-role" class="form-control" style="width:100px">
+                                <option value="viewer">Viewer</option>
+                                <option value="editor">Editor</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary">Invite</button>
+                        </div>
+                    </div>
+                </form>
+
+                <div id="group-shortcuts-container" class="mt-6 hidden">
+                    <label>Group Shortcuts</label>
+                    <ul id="group-shortcuts-list" class="mt-2" style="max-height:100px; overflow-y:auto">
+                        <!-- Group shortcuts items -->
+                    </ul>
+                </div>
+
+                <div class="share-list-container mt-6">
+                    <label>People with access</label>
+                    <ul id="share-list" class="mt-2" style="max-height:160px; overflow-y:auto">
+                        <!-- Shared users items -->
+                    </ul>
+                </div>
+
+                <div class="share-footer"
+                    style="margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <div class="share-setting-row"
+                        style="display: flex; align-items: center; justify-content: space-between;">
+                        <div class="setting-info" style="display: flex; gap: 1rem; align-items: center;">
+                            <div class="setting-icon-box"
+                                style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor" class="icon-sm" id="access-icon">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                                </svg>
+                            </div>
+                            <div class="setting-text">
+                                <h4 id="access-status" style="margin: 0; font-size: 0.95rem;">Restricted</h4>
+                                <p id="access-desc" style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">
+                                    Only
+                                    people with access can open with the link</p>
+                            </div>
+                        </div>
+                        <button id="toggle-share-public-btn" class="btn btn-text text-primary"
+                            style="font-weight: 600;">Change</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions"
+                    style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                    <button type="button" class="btn btn-outline" id="copy-share-link-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                        </svg>
+                        Copy Link
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="add-to-group-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Add to Group
+                    </button>
+                    <div style="flex:1"></div>
+                    <button type="button" class="btn btn-primary close-modal">Done</button>
+                </div>
+            </div>
+
+            <!-- Bulk Add Modal -->
+            <div id="bulk-add-modal" class="modal hidden" style="max-width: 700px;">
+                <h3>Bulk Add Cards</h3>
+                <p class="text-secondary text-sm mb-4">Add multiple cards at once. One card per line.</p>
+                <form id="bulk-add-form">
+                    <div class="input-group">
+                        <label>Cards Data (Front [Separator] Back)</label>
+                        <textarea id="bulk-add-input" rows="12"
+                            placeholder="Example:&#10;Apple | Red fruit&#10;Banana | Yellow fruit" required
+                            style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;"></textarea>
+                    </div>
+
+                    <div class="bulk-settings"
+                        style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: var(--radius);">
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.75rem;">Separator</label>
+                        <div class="separator-options"
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                            <label class="radio-container" style="font-size: 0.875rem;">
+                                <input type="radio" name="separator" value="|" checked> <span>| (Pipe)</span>
+                            </label>
+                            <label class="radio-container" style="font-size: 0.875rem;">
+                                <input type="radio" name="separator" value="-"> <span>- (Dash)</span>
+                            </label>
+                            <label class="radio-container" style="font-size: 0.875rem;">
+                                <input type="radio" name="separator" value=","> <span>, (Comma)</span>
+                            </label>
+                            <label class="radio-container" style="font-size: 0.875rem;">
+                                <input type="radio" name="separator" value="\t"> <span>Tab</span>
+                            </label>
+                            <input type="text" id="custom-separator" placeholder="e.g. ::"
+                                style="padding: 0.25rem 0.5rem; font-size: 0.875rem;">
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="bulk-add-submit">Add All Cards</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Create Subject Modal -->
+            <div id="create-subject-modal" class="modal hidden">
+                <h3>Create New Subject</h3>
+                <form id="create-subject-form">
+                    <div class="input-group">
+                        <label>Subject Name</label>
+                        <input type="text" id="new-subject-name" required placeholder="e.g., Mathematics">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Move Deck Modal -->
+            <div id="move-deck-modal" class="modal hidden">
+                <h3>Move Deck to Subject</h3>
+                <form id="move-deck-form">
+                    <input type="hidden" id="move-deck-id">
+                    <div class="input-group">
+                        <label>Select Subject</label>
+                        <select id="move-deck-subject-select" required
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Deck Settings Modal -->
+            <div id="deck-settings-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h3>Deck Settings</h3>
+                    <button class="modal-close" onclick="closeModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="deck-settings-form">
+                        <input type="hidden" id="deck-settings-id">
+                        <div class="settings-row">
+                            <label class="settings-label">Deck Title</label>
+                            <input type="text" id="deck-settings-title" required placeholder="Enter deck title">
+                        </div>
+                        <div class="settings-row">
+                            <label class="settings-label">Description</label>
+                            <textarea id="deck-settings-description" rows="4"
+                                placeholder="Add a description for this deck..."></textarea>
+                        </div>
+
+                        <div class="modal-actions" style="margin-top: 2rem;">
+                            <button type="button" class="btn btn-text close-modal">Cancel</button>
                             <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+
+                        <div class="danger-zone">
+                            <div class="danger-title">Danger Zone</div>
+                            <div
+                                class="flex justify-between items-center p-4 bg-red-50 rounded-lg border border-red-100">
+                                <div>
+                                    <div class="font-bold text-sm text-red-700">Delete this deck</div>
+                                    <div class="text-xs text-red-600 opacity-80">Once deleted, it cannot be recovered.
+                                    </div>
+                                </div>
+                                <button type="button" id="modal-delete-deck-btn"
+                                    class="btn btn-danger btn-sm">Delete</button>
+                            </div>
                         </div>
                     </form>
                 </div>
-
-                <!-- Appearance Tab -->
-                <div id="settings-appearance" class="settings-tab-view hidden">
-                    <h2 class="text-xl font-bold mb-6">Appearance</h2>
-
-                    <div class="settings-section mb-8">
-                        <label
-                            class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Theme</label>
-                        <div class="theme-options-grid"
-                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                            <div class="theme-option active" data-theme="light"
-                                style="border: 2px solid var(--primary); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: var(--surface);">
-                                <div
-                                    style="height: 40px; background: #f8fafc; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
-                                </div>
-                                <span class="text-sm font-medium">Light</span>
-                            </div>
-                            <div class="theme-option" data-theme="dark"
-                                style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #1e293b; color: #f8fafc;">
-                                <div
-                                    style="height: 40px; background: #0f172a; border-radius: 4px; border: 1px solid #334155; margin-bottom: 0.5rem;">
-                                </div>
-                                <span class="text-sm font-medium">Dark</span>
-                            </div>
-                            <div class="theme-option" data-theme="system"
-                                style="border: 2px solid var(--border); border-radius: var(--radius); padding: 1rem; cursor: pointer; text-align: center; background: #fff;">
-                                <div
-                                    style="height: 40px; background: linear-gradient(135deg, #f8fafc 50%, #0f172a 50%); border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 0.5rem;">
-                                </div>
-                                <span class="text-sm font-medium">System</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-4 block">Interface
-                            Preferences</label>
-                        <div class="toggle-group" style="display: flex; flex-direction: column; gap: 1rem;">
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <h4 class="text-sm font-medium">Reduced Motion</h4>
-                                    <p class="text-xs text-secondary">Disable card flip animations</p>
-                                </div>
-                                <input type="checkbox" id="settings-reduced-motion" class="toggle-switch">
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <h4 class="text-sm font-medium">Compact Sidebar</h4>
-                                    <p class="text-xs text-secondary">Hide labels in the side navigation</p>
-                                </div>
-                                <input type="checkbox" id="settings-compact-sidebar" class="toggle-switch">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Study Tab -->
-                <div id="settings-study" class="settings-tab-view hidden">
-                    <h2 class="text-xl font-bold mb-6">Study Preferences</h2>
-
-                    <div class="settings-section mb-8">
-                        <div class="input-group mb-6">
-                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Daily
-                                Review Limit</label>
-                            <input type="number" id="settings-daily-limit" value="20" min="5" max="500"
-                                style="max-width: 150px;">
-                            <p class="text-xs text-secondary mt-2">Maximum cards to study per session by default.</p>
-                        </div>
-
-                        <div class="input-group mb-6">
-                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Default
-                                Rating Separator</label>
-                            <input type="text" id="settings-default-separator" value="|" style="max-width: 80px;">
-                            <p class="text-xs text-secondary mt-2">Separator used for Bulk Add.</p>
-                        </div>
-
-                        <div class="toggle-group">
-                            <div
-                                style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
-                                <div>
-                                    <h4 class="text-sm font-medium">Auto-reveal Answer</h4>
-                                    <p class="text-xs text-secondary">Flip card automatically after 5 seconds</p>
-                                </div>
-                                <input type="checkbox" id="settings-auto-flip" class="toggle-switch">
-                            </div>
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <h4 class="text-sm font-medium">Show Progress Bar</h4>
-                                    <p class="text-xs text-secondary">Display a progress indicator during study</p>
-                                </div>
-                                <input type="checkbox" id="settings-show-progress" checked class="toggle-switch">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Statistics Tab -->
-                <div id="settings-stats" class="settings-tab-view hidden">
-                    <h2 class="text-xl font-bold mb-6">Learning Statistics</h2>
-
-                    <div class="stats-overview-grid"
-                        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; margin-bottom: 2rem;">
-                        <div class="stat-card"
-                            style="padding: 1.5rem; background: var(--primary-light); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
-                            <span class="text-xs text-primary font-bold uppercase"
-                                style="position: relative; z-index: 2;">Total Cards Mastered</span>
-                            <div id="settings-stat-mastered" class="text-3xl font-bold text-primary mt-1"
-                                style="position: relative; z-index: 2;">0</div>
-                        </div>
-                        <div class="stat-card"
-                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
-                            <span class="text-xs text-success font-bold uppercase"
-                                style="position: relative; z-index: 2;">Current Streak</span>
-                            <div id="settings-stat-streak" class="text-3xl font-bold text-success mt-1"
-                                style="position: relative; z-index: 2;">0 days</div>
-                        </div>
-                        <div class="stat-card"
-                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
-                            <span class="text-xs text-warning font-bold uppercase"
-                                style="position: relative; z-index: 2;">Total Reviews</span>
-                            <div id="settings-stat-reviews" class="text-3xl font-bold text-warning mt-1"
-                                style="position: relative; z-index: 2;">0</div>
-                        </div>
-                        <div class="stat-card"
-                            style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
-                            <span class="text-xs font-bold uppercase"
-                                style="position: relative; z-index: 2; color: var(--primary);">Decks Created</span>
-                            <div id="settings-stat-decks" class="text-3xl font-bold mt-1"
-                                style="position: relative; z-index: 2; color: var(--primary);">0</div>
-                        </div>
-                    </div>
-
-                    <div style="background: var(--background); border-radius: var(--radius); padding: 1.5rem;">
-                        <h4 class="text-sm font-semibold mb-2">Member Since</h4>
-                        <p id="settings-member-since" class="text-secondary text-base">January 2026</p>
-                    </div>
-                </div>
-
-                <!-- About Tab -->
-                <div id="settings-about" class="settings-tab-view hidden">
-                    <div style="text-align: center; padding: 2rem 0;">
-                        <img src="./Assets/logo.png" alt="Flashly Logo"
-                            style="width: 80px; height: 80px; margin-bottom: 1.5rem;">
-                        <h2 class="text-2xl font-bold">Flashly</h2>
-                        <p class="text-secondary mb-8">Version 0.28-beta</p>
-
-                        <div style="max-width: 400px; margin: 0 auto; line-height: 1.6; color: var(--text-secondary);">
-                            <p class="mb-4">Flashly is an open-source spaced repetition system designed for speed,
-                                focus, and collaboration.</p>
-                            <p>Build with ❤️ by focused students for focused students.</p>
-                        </div>
-
-                        <div class="mt-8 flex justify-center gap-4" style="text-decoration: none;">
-                            <a href="https://github.com/zandenkoh/flashly" class="btn btn-secondary btn-sm"
-                                target="_blank" style="text-decoration: none;">Release notes</a>
-                            <a href="./support/index.html" class="btn btn-secondary btn-sm" target="_blank"
-                                style="text-decoration: none;">Support</a>
-                            <a href="./privacy/index.html" class="btn btn-secondary btn-sm" target="_blank"
-                                style="text-decoration: none;">Privacy Policy</a>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-
-        <!-- Create Group Modal -->
-        <div id="create-group-modal" class="modal hidden">
-            <h3>Create New Group</h3>
-            <form id="create-group-form">
-                <div class="input-group">
-                    <label>Group Name</label>
-                    <input type="text" id="new-group-name" required>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Join Group Modal -->
-        <div id="join-group-modal" class="modal hidden">
-            <h3>Join Group</h3>
-            <form id="join-group-form">
-                <div class="input-group">
-                    <label>Invite Code</label>
-                    <input type="text" id="join-invite-code" placeholder="e.g. abcd1234..." required>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Join</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Share Modal -->
-        <div id="share-modal" class="modal hidden">
-            <div class="modal-header"
-                style="display: flex; flex-direction: row; align-items: center; white-space: nowrap; overflow-x: auto; flex-wrap: nowrap;">
-                <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">
-                    Share "
-                    <span class="text-dim" id="share-deck-title" style="white-space: nowrap; margin: 0;">Deck
-                        Title</span>
-                    "
-                </h3>
             </div>
 
-            <form id="share-form" class="mt-4">
-                <div class="input-group">
-                    <label style="margin-top: 10px;">Add people by email</label>
-                    <div style="display:flex; gap:0.5rem">
-                        <input type="email" id="share-email" placeholder="email@example.com" required style="flex:1">
-                        <select id="share-role" class="form-control" style="width:100px">
-                            <option value="viewer">Viewer</option>
-                            <option value="editor">Editor</option>
+            <!-- Rename Modal (Kept for Subject renames) -->
+            <div id="rename-modal" class="modal hidden">
+                <h3 id="rename-modal-title">Rename</h3>
+                <form id="rename-form">
+                    <input type="hidden" id="rename-item-id">
+                    <input type="hidden" id="rename-item-type"> <!-- 'deck' or 'subject' -->
+                    <div class="input-group">
+                        <label>Name</label>
+                        <input type="text" id="rename-input" required>
+                    </div>
+                    <div class="input-group hidden" id="rename-description-group">
+                        <label>Description</label>
+                        <textarea id="rename-description-input" rows="3"
+                            style="font-family: inherit; font-size: inherit; resize: vertical;"></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+            <!-- Add Deck to Group Modal -->
+            <div id="add-to-group-modal" class="modal hidden">
+                <h3>Add Deck to Group</h3>
+                <p class="text-secondary text-sm mb-4">Choose a group to share this deck with.</p>
+                <form id="add-to-group-form">
+                    <input type="hidden" id="add-to-group-deck-id">
+                    <div class="input-group">
+                        <label>Select Group</label>
+                        <select id="add-to-group-select" required
+                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
+                            <!-- Populated by JS -->
                         </select>
-                        <button type="submit" class="btn btn-primary">Invite</button>
                     </div>
-                </div>
-            </form>
-
-            <div id="group-shortcuts-container" class="mt-6 hidden">
-                <label>Group Shortcuts</label>
-                <ul id="group-shortcuts-list" class="mt-2" style="max-height:100px; overflow-y:auto">
-                    <!-- Group shortcuts items -->
-                </ul>
-            </div>
-
-            <div class="share-list-container mt-6">
-                <label>People with access</label>
-                <ul id="share-list" class="mt-2" style="max-height:160px; overflow-y:auto">
-                    <!-- Shared users items -->
-                </ul>
-            </div>
-
-            <div class="share-footer" style="margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border);">
-                <div class="share-setting-row"
-                    style="display: flex; align-items: center; justify-content: space-between;">
-                    <div class="setting-info" style="display: flex; gap: 1rem; align-items: center;">
-                        <div class="setting-icon-box"
-                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" class="icon-sm" id="access-icon">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                            </svg>
-                        </div>
-                        <div class="setting-text">
-                            <h4 id="access-status" style="margin: 0; font-size: 0.95rem;">Restricted</h4>
-                            <p id="access-desc" style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Only
-                                people with access can open with the link</p>
-                        </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-text close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add to Group</button>
                     </div>
-                    <button id="toggle-share-public-btn" class="btn btn-text text-primary"
-                        style="font-weight: 600;">Change</button>
-                </div>
+                </form>
             </div>
-
-            <div class="modal-actions"
-                style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
-                <button type="button" class="btn btn-outline" id="copy-share-link-modal">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                        class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                    </svg>
-                    Copy Link
-                </button>
-                <button type="button" class="btn btn-secondary" id="add-to-group-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Add to Group
-                </button>
-                <div style="flex:1"></div>
-                <button type="button" class="btn btn-primary close-modal">Done</button>
-            </div>
-        </div>
-
-        <!-- Bulk Add Modal -->
-        <div id="bulk-add-modal" class="modal hidden" style="max-width: 700px;">
-            <h3>Bulk Add Cards</h3>
-            <p class="text-secondary text-sm mb-4">Add multiple cards at once. One card per line.</p>
-            <form id="bulk-add-form">
-                <div class="input-group">
-                    <label>Cards Data (Front [Separator] Back)</label>
-                    <textarea id="bulk-add-input" rows="12"
-                        placeholder="Example:&#10;Apple | Red fruit&#10;Banana | Yellow fruit" required
-                        style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;"></textarea>
-                </div>
-
-                <div class="bulk-settings"
-                    style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: var(--radius);">
-                    <label style="font-weight: 600; display: block; margin-bottom: 0.75rem;">Separator</label>
-                    <div class="separator-options"
-                        style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
-                        <label class="radio-container" style="font-size: 0.875rem;">
-                            <input type="radio" name="separator" value="|" checked> <span>| (Pipe)</span>
-                        </label>
-                        <label class="radio-container" style="font-size: 0.875rem;">
-                            <input type="radio" name="separator" value="-"> <span>- (Dash)</span>
-                        </label>
-                        <label class="radio-container" style="font-size: 0.875rem;">
-                            <input type="radio" name="separator" value=","> <span>, (Comma)</span>
-                        </label>
-                        <label class="radio-container" style="font-size: 0.875rem;">
-                            <input type="radio" name="separator" value="\t"> <span>Tab</span>
-                        </label>
-                        <input type="text" id="custom-separator" placeholder="e.g. ::"
-                            style="padding: 0.25rem 0.5rem; font-size: 0.875rem;">
-                    </div>
-                </div>
-
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="bulk-add-submit">Add All Cards</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Create Subject Modal -->
-        <div id="create-subject-modal" class="modal hidden">
-            <h3>Create New Subject</h3>
-            <form id="create-subject-form">
-                <div class="input-group">
-                    <label>Subject Name</label>
-                    <input type="text" id="new-subject-name" required placeholder="e.g., Mathematics">
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Move Deck Modal -->
-        <div id="move-deck-modal" class="modal hidden">
-            <h3>Move Deck to Subject</h3>
-            <form id="move-deck-form">
-                <input type="hidden" id="move-deck-id">
-                <div class="input-group">
-                    <label>Select Subject</label>
-                    <select id="move-deck-subject-select" required
-                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Move</button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Rename Modal -->
-        <div id="rename-modal" class="modal hidden">
-            <h3 id="rename-modal-title">Rename</h3>
-            <form id="rename-form">
-                <input type="hidden" id="rename-item-id">
-                <input type="hidden" id="rename-item-type"> <!-- 'deck' or 'subject' -->
-                <div class="input-group">
-                    <label>Name</label>
-                    <input type="text" id="rename-input" required>
-                </div>
-                <div class="input-group hidden" id="rename-description-group">
-                    <label>Description</label>
-                    <textarea id="rename-description-input" rows="3"
-                        style="font-family: inherit; font-size: inherit; resize: vertical;"></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save</button>
-                </div>
-            </form>
-        </div>
-        <!-- Add Deck to Group Modal -->
-        <div id="add-to-group-modal" class="modal hidden">
-            <h3>Add Deck to Group</h3>
-            <p class="text-secondary text-sm mb-4">Choose a group to share this deck with.</p>
-            <form id="add-to-group-form">
-                <input type="hidden" id="add-to-group-deck-id">
-                <div class="input-group">
-                    <label>Select Group</label>
-                    <select id="add-to-group-select" required
-                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-text close-modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Add to Group</button>
-                </div>
-            </form>
-        </div>
-    </div>
+        </div> <!-- End Add to Group Modal -->
+    </div> <!-- End Modal Overlay -->
 
     <!-- Toast Notification Container -->
     <div id="toast-container"></div>
 
-    </div>
-    <!-- End Body Wrapper -->
+    </div> <!-- End App Wrapper -->
 
-    </div>
-    <!-- End Body Wrapper -->
 
     <script src="script.js" defer></script>
 </body>
