@@ -188,6 +188,14 @@
                         </svg>
                         Groups
                     </button>
+                    <button id="nav-notes" class="nav-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                        Notes
+                    </button>
                     <button id="nav-insights" class="nav-item">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
                             class="icon-sm">
@@ -322,6 +330,40 @@
                             <h2 class="text-2xl font-bold">Insights</h2>
                             <p class="text-secondary">Track your learning progress over time</p>
                         </div>
+
+                        <div class="stats-overview-grid">
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Total Reviews</span>
+                                <span class="stat-value" id="stats-total-reviews">0</span>
+                                <span class="stat-subtext">Lifetime reviews</span>
+                            </div>
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Retention Rate</span>
+                                <span class="stat-value" id="stats-retention-rate">0%</span>
+                                <span class="stat-subtext">Last 30 days</span>
+                            </div>
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Current Streak</span>
+                                <span class="stat-value" id="stats-streak">0</span>
+                                <span class="stat-subtext">Consecutive days</span>
+                            </div>
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Cards Mastered</span>
+                                <span class="stat-value" id="stats-mastered">0</span>
+                                <span class="stat-subtext">Proficient level</span>
+                            </div>
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Daily Average</span>
+                                <span class="stat-value" id="stats-daily-avg">0</span>
+                                <span class="stat-subtext">Reviews per day</span>
+                            </div>
+                            <div class="stat-card-premium">
+                                <span class="stat-label">Study Time</span>
+                                <span class="stat-value" id="stats-study-time">0h</span>
+                                <span class="stat-subtext">Estimated total</span>
+                            </div>
+                        </div>
+
                         <div class="insights-stack">
                             <div class="card">
                                 <h3 class="mb-4 text-lg">Activity Heatmap</h3>
@@ -493,6 +535,101 @@
                             </ul>
                         </div>
                     </section>
+
+                    <!-- Notes Marketplace View -->
+                    <section id="notes-view" class="view hidden">
+                        <div class="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 class="text-2xl font-bold">Notes Marketplace</h2>
+                                <p class="text-secondary">Explore high-quality notes from the holy grail.</p>
+                            </div>
+                            <button id="add-note-btn" class="btn btn-primary hidden">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor" class="icon-sm">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                </svg>
+                                Add Note
+                            </button>
+                        </div>
+
+                        <!-- Filters & Search -->
+                        <div class="notes-filters-bar">
+                            <div class="search-container notes-search">
+                                <input type="text" id="notes-search-input" class="search-input"
+                                    placeholder="Search notes, subjects...">
+                            </div>
+                            <div class="filters-group">
+                                <select id="filter-category" class="filter-select">
+                                    <option value="all">All Levels</option>
+                                    <option value="O Level">GCE 'O' Levels</option>
+                                    <option value="A Level">GCE 'A' Levels</option>
+                                    <option value="IB">IB</option>
+                                    <option value="N Level">GCE 'N' Levels</option>
+                                    <option value="IP">IP</option>
+                                    <option value="Sec 1-2">Sec 1-2 (Non IP)</option>
+                                </select>
+                                <select id="filter-subject" class="filter-select">
+                                    <option value="all">All Subjects</option>
+                                    <!-- Subjects populated dynamically or hardcoded -->
+                                    <option value="Additional Mathematics">Additional Mathematics</option>
+                                    <option value="Elementary Mathematics">Elementary Mathematics</option>
+                                    <option value="Pure Physics">Pure Physics</option>
+                                    <option value="Combined Physics">Combined Physics</option>
+                                    <option value="Pure Chemistry">Pure Chemistry</option>
+                                    <option value="Combined Chemistry">Combined Chemistry</option>
+                                    <option value="Pure Biology">Pure Biology</option>
+                                    <option value="Combined Biology">Combined Biology</option>
+                                    <option value="Computing">Computing</option>
+                                    <option value="English">English</option>
+                                    <option value="Pure Geography">Pure Geography</option>
+                                    <option value="Elective Geography">Elective Geography</option>
+                                    <option value="Pure History">Pure History</option>
+                                    <option value="Elective History">Elective History</option>
+                                    <option value="Social Studies">Social Studies</option>
+                                    <option value="Pure Literature">Pure Literature</option>
+                                    <option value="Elective Literature">Elective Literature</option>
+                                    <option value="Chinese">Chinese</option>
+                                    <option value="Higher Chinese">Higher Chinese</option>
+                                    <option value="Malay">Malay</option>
+                                    <option value="Design and Technology">Design and Technology</option>
+                                    <option value="Principles of Accounting">Principles of Accounting</option>
+                                </select>
+                                <select id="filter-type" class="filter-select">
+                                    <option value="all">All Types</option>
+                                    <option value="Notes/Practices">Notes/Practices</option>
+                                    <option value="Exam Papers">Exam Papers</option>
+                                    <option value="TYS Answers">TYS Answers</option>
+                                    <option value="MYEs/CAs/Other Tests">MYEs/CAs/Other Tests</option>
+                                    <option value="User Mock Papers">User Mock Papers</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Notes Grid -->
+                        <div id="notes-grid" class="grid-container">
+                            <!-- Notes injected here -->
+                        </div>
+                    </section>
+
+                    <!-- PDF Viewer Modal -->
+                    <div id="pdf-viewer-modal" class="modal-overlay hidden" style="z-index: 200;">
+                        <div class="pdf-modal-content">
+                            <div class="pdf-header">
+                                <h3 id="pdf-viewer-title" class="text-lg font-bold">Note Title</h3>
+                                <button id="close-pdf-btn" class="btn-icon-only">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="icon-sm">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="pdf-body">
+                                <iframe id="pdf-frame" src="" width="100%" height="100%" frameborder="0"></iframe>
+                            </div>
+                        </div>
+                    </div>
+
+
 
                     <!-- Deck Details View (Card List) -->
                     <section id="deck-view" class="view hidden">
@@ -933,7 +1070,8 @@
 
                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     <button class="btn btn-primary btn-lg w-full btn-signup-toggle">Sign up to Access</button>
-                    <button class="btn btn-secondary btn-lg w-full btn-login-toggle">Already have an account? Log in</button>
+                    <button class="btn btn-secondary btn-lg w-full btn-login-toggle">Already have an account? Log
+                        in</button>
                 </div>
 
                 <button class="btn btn-text mt-6 text-sm"
@@ -1295,6 +1433,8 @@
                                     style="position: relative; z-index: 2;">Total Cards Mastered</span>
                                 <div id="settings-stat-mastered" class="text-3xl font-bold text-primary mt-1"
                                     style="position: relative; z-index: 2;">0</div>
+                                <canvas id="chart-mastery"
+                                    style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; pointer-events: none; z-index: 1;"></canvas>
                             </div>
                             <div class="stat-card"
                                 style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
@@ -1302,6 +1442,8 @@
                                     style="position: relative; z-index: 2;">Current Streak</span>
                                 <div id="settings-stat-streak" class="text-3xl font-bold text-success mt-1"
                                     style="position: relative; z-index: 2;">0 days</div>
+                                <canvas id="chart-streak"
+                                    style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; pointer-events: none; z-index: 1;"></canvas>
                             </div>
                             <div class="stat-card"
                                 style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
@@ -1309,6 +1451,8 @@
                                     style="position: relative; z-index: 2;">Total Reviews</span>
                                 <div id="settings-stat-reviews" class="text-3xl font-bold text-warning mt-1"
                                     style="position: relative; z-index: 2;">0</div>
+                                <canvas id="chart-reviews"
+                                    style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; pointer-events: none; z-index: 1;"></canvas>
                             </div>
                             <div class="stat-card"
                                 style="padding: 1.5rem; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); position: relative; overflow: hidden; min-height: 160px;">
@@ -1316,6 +1460,8 @@
                                     style="position: relative; z-index: 2; color: var(--primary);">Decks Created</span>
                                 <div id="settings-stat-decks" class="text-3xl font-bold mt-1"
                                     style="position: relative; z-index: 2; color: var(--primary);">0</div>
+                                <canvas id="chart-decks"
+                                    style="position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; pointer-events: none; z-index: 1;"></canvas>
                             </div>
                         </div>
 
@@ -1635,11 +1781,83 @@
                     </div>
                 </form>
             </div>
-        </div> <!-- End Add to Group Modal -->
-    </div> <!-- End Modal Overlay -->
+            <!-- Add Note Modal -->
+            <div id="add-note-modal" class="modal hidden">
+                <div class="modal-header">
+                    <h3>Add New Note</h3>
+                    <button id="close-add-note-btn" class="btn-icon-only">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <form id="add-note-form">
+                    <div class="input-group">
+                        <label>Title</label>
+                        <input type="text" id="note-title" required placeholder="e.g. 2024 Prelim Paper 1">
+                    </div>
+                    <div class="input-group">
+                        <label>Category (Level)</label>
+                        <select id="note-category" class="input-field" required>
+                            <option value="O Level">GCE 'O' Levels</option>
+                            <option value="A Level">GCE 'A' Levels</option>
+                            <option value="IB">IB</option>
+                            <option value="N Level">GCE 'N' Levels</option>
+                            <option value="IP">IP</option>
+                            <option value="Sec 1-2">Sec 1-2 (Non IP)</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Subject</label>
+                        <select id="note-subject" class="input-field" required>
+                            <option value="Additional Mathematics">Additional Mathematics</option>
+                            <option value="Elementary Mathematics">Elementary Mathematics</option>
+                            <option value="Pure Physics">Pure Physics</option>
+                            <option value="Combined Physics">Combined Physics</option>
+                            <option value="Pure Chemistry">Pure Chemistry</option>
+                            <option value="Combined Chemistry">Combined Chemistry</option>
+                            <option value="Pure Biology">Pure Biology</option>
+                            <option value="Combined Biology">Combined Biology</option>
+                            <option value="Computing">Computing</option>
+                            <option value="English">English</option>
+                            <option value="Pure Geography">Pure Geography</option>
+                            <option value="Elective Geography">Elective Geography</option>
+                            <option value="Pure History">Pure History</option>
+                            <option value="Elective History">Elective History</option>
+                            <option value="Social Studies">Social Studies</option>
+                            <option value="Pure Literature">Pure Literature</option>
+                            <option value="Elective Literature">Elective Literature</option>
+                            <option value="Chinese">Chinese</option>
+                            <option value="Higher Chinese">Higher Chinese</option>
+                            <option value="Malay">Malay</option>
+                            <option value="Design and Technology">Design and Technology</option>
+                            <option value="Principles of Accounting">Principles of Accounting</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Document Type</label>
+                        <select id="note-type" class="input-field" required>
+                            <option value="Notes/Practices">Notes/Practices</option>
+                            <option value="Exam Papers">Exam Papers</option>
+                            <option value="TYS Answers">TYS Answers</option>
+                            <option value="MYEs/CAs/Other Tests">MYEs/CAs/Other Tests</option>
+                            <option value="User Mock Papers">User Mock Papers</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>PDF URL (Direct Link)</label>
+                        <input type="url" id="note-url" required placeholder="https://example.com/file.pdf">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" class="btn btn-primary">Add Note</button>
+                    </div>
+                </form>
+            </div>
+        </div> <!-- End Modal Overlay -->
 
-    <!-- Toast Notification Container -->
-    <div id="toast-container"></div>
+        <!-- Toast Notification Container -->
+        <div id="toast-container"></div>
 
     </div> <!-- End App Wrapper -->
 

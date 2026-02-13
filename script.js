@@ -133,6 +133,12 @@ async function checkUser() {
         detectLinksEarly();
     }
 
+    // Check for admin/uploader access
+    if (state.user && state.user.email === 'kohzanden@gmail.com') {
+        const addBtn = document.getElementById('add-note-btn');
+        if (addBtn) addBtn.classList.remove('hidden');
+    }
+
     sb.auth.onAuthStateChange((_event, session) => {
         state.user = session ? session.user : null;
         if (state.user) {
@@ -243,6 +249,9 @@ function showApp() {
 
     // Set active nav
     updateNav('nav-today');
+
+    // Init Notes
+    initNotes();
 }
 
 async function handleDeepLinks() {
@@ -474,7 +483,14 @@ document.getElementById('nav-community').addEventListener('click', () => {
 document.getElementById('nav-groups').addEventListener('click', () => {
     updateNav('nav-groups');
     switchView('groups-view'); // Make sure this ID exists in HTML, or reuse decks-view logic if similar
+    switchView('groups-view'); // Make sure this ID exists in HTML, or reuse decks-view logic if similar
     loadGroups();
+});
+
+document.getElementById('nav-notes').addEventListener('click', () => {
+    updateNav('nav-notes');
+    switchView('notes-view');
+    loadNotesView();
 });
 
 
@@ -585,6 +601,13 @@ function renderSettingsCharts(mastered, streak, reviews, decks, logs) {
     settingsChartInstances.forEach(chart => chart.destroy());
     settingsChartInstances.length = 0;
 
+    const masteryEl = document.getElementById('chart-mastery');
+    const streakEl = document.getElementById('chart-streak');
+    const reviewsEl = document.getElementById('chart-reviews');
+    const decksEl = document.getElementById('chart-decks');
+
+    if (!masteryEl || !streakEl || !reviewsEl || !decksEl) return;
+
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
     // Helper to create gradient
@@ -611,7 +634,7 @@ function renderSettingsCharts(mastered, streak, reviews, decks, logs) {
     };
 
     // 1. Mastery Chart (Smooth Area)
-    const ctxMastery = document.getElementById('chart-mastery').getContext('2d');
+    const ctxMastery = masteryEl.getContext('2d');
     const gradMastery = createGradient(ctxMastery, 'rgba(37, 99, 235, 0.5)', 'rgba(37, 99, 235, 0.05)');
 
     settingsChartInstances.push(new Chart(ctxMastery, {
@@ -631,7 +654,7 @@ function renderSettingsCharts(mastered, streak, reviews, decks, logs) {
     }));
 
     // 2. Streak Chart (Stepped Area for "consistent" feel)
-    const ctxStreak = document.getElementById('chart-streak').getContext('2d');
+    const ctxStreak = streakEl.getContext('2d');
     const gradStreak = createGradient(ctxStreak, 'rgba(34, 197, 94, 0.5)', 'rgba(34, 197, 94, 0.05)');
 
     settingsChartInstances.push(new Chart(ctxStreak, {
@@ -651,7 +674,7 @@ function renderSettingsCharts(mastered, streak, reviews, decks, logs) {
     }));
 
     // 3. Reviews Chart (Activity Waves)
-    const ctxReviews = document.getElementById('chart-reviews').getContext('2d');
+    const ctxReviews = reviewsEl.getContext('2d');
     const gradReviews = createGradient(ctxReviews, 'rgba(245, 158, 11, 0.5)', 'rgba(245, 158, 11, 0.05)');
 
     // Generate some wave-like data
@@ -675,7 +698,7 @@ function renderSettingsCharts(mastered, streak, reviews, decks, logs) {
     }));
 
     // 4. Decks Chart (Growth Curve)
-    const ctxDecks = document.getElementById('chart-decks').getContext('2d');
+    const ctxDecks = decksEl.getContext('2d');
     const gradDecks = createGradient(ctxDecks, 'rgba(139, 92, 246, 0.5)', 'rgba(139, 92, 246, 0.05)');
 
     settingsChartInstances.push(new Chart(ctxDecks, {
@@ -1349,32 +1372,56 @@ function renderDecksViewWithSubjects() {
         ? state.decks.filter(d => d.user_id !== state.user.id)
         : state.decks.filter(d => d.user_id === state.user.id);
 
-    const showEmptyState = state.deckTab === 'shared'
-        ? filteredDecks.length === 0
-        : (filteredDecks.length === 0 && state.subjects.length === 0);
-
-    if (showEmptyState) {
+    // Default message when no decks exist in 'My Decks'
+    if (state.deckTab === 'my' && filteredDecks.length === 0 && state.subjects.length === 0) {
         list.innerHTML = `
             <div class="empty-state">
                 <div style="width: 100%; text-align: center; margin: 100px 0">
-                    <h3>${state.deckTab === 'shared' ? 'No Shared Decks' : 'No Decks Yet'}</h3>
-                    <p>${state.deckTab === 'shared' ? 'Decks shared with you will appear here.' : 'Create your first deck to start learning.'}</p>
-                    ${state.deckTab === 'my' ? '<button class="btn btn-primary mt-4" onclick="document.getElementById(\'create-deck-btn\').click()">Create Deck</button>' : ''}
+                    <h3>No Decks Yet</h3>
+                    <p>Create your first deck or subject to start organizing your learning.</p>
+                    <button class="btn btn-primary mt-4" onclick="document.getElementById('create-deck-btn').click()">Create Deck</button>
                 </div>  
             </div>
         `;
         return;
     }
 
-    // 1. Render Subjects
+    if (state.deckTab === 'shared' && filteredDecks.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <div style="width: 100%; text-align: center; margin: 100px 0">
+                    <h3>No Shared Decks</h3>
+                    <p>Decks shared with you will appear here.</p>
+                </div>  
+            </div>
+        `;
+        return;
+    }
+
+    // 1. Render Subjects (including empty ones if in 'my' tab)
     state.subjects.forEach(subject => {
         const subjectDecks = filteredDecks.filter(d => d.subject_id === subject.id);
 
-        // Don't show empty subjects in the current tab
-        if (subjectDecks.length === 0) return;
-
         const subjectSection = document.createElement('div');
         subjectSection.className = 'subject-section';
+
+        // Add drag target for subjects
+        if (state.deckTab === 'my') {
+            subjectSection.ondragover = (e) => {
+                e.preventDefault();
+                subjectSection.classList.add('drag-over');
+            };
+            subjectSection.ondragleave = () => subjectSection.classList.remove('drag-over');
+            subjectSection.ondrop = async (e) => {
+                e.preventDefault();
+                subjectSection.classList.remove('drag-over');
+                const deckId = e.dataTransfer.getData('deckId');
+                if (deckId) {
+                    await updateDeckSubject(deckId, subject.id);
+                }
+            };
+        }
+
         subjectSection.innerHTML = `
             <div class="subject-header">
                 <div class="subject-title-group">
@@ -1400,16 +1447,42 @@ function renderDecksViewWithSubjects() {
         list.appendChild(subjectSection);
         const contentDiv = subjectSection.querySelector(`#subject-content-${subject.id}`);
         subjectDecks.forEach(deck => renderDeckRow(deck, contentDiv));
+
+        // If empty and in 'my' tab, show a small hint
+        if (subjectDecks.length === 0 && state.deckTab === 'my') {
+            const hint = document.createElement('div');
+            hint.className = 'subject-empty-hint';
+            hint.textContent = 'Drop decks here';
+            contentDiv.appendChild(hint);
+        }
     });
 
     // 2. Render Uncategorized Decks
     const uncategorized = filteredDecks.filter(d => !d.subject_id);
-    if (uncategorized.length > 0) {
+    if (uncategorized.length > 0 || state.deckTab === 'my') {
         const uncategorizedSection = document.createElement('div');
         uncategorizedSection.className = 'subject-section';
+
+        // Add drag target for uncategorized
+        if (state.deckTab === 'my') {
+            uncategorizedSection.ondragover = (e) => {
+                e.preventDefault();
+                uncategorizedSection.classList.add('drag-over');
+            };
+            uncategorizedSection.ondragleave = () => uncategorizedSection.classList.remove('drag-over');
+            uncategorizedSection.ondrop = async (e) => {
+                e.preventDefault();
+                uncategorizedSection.classList.remove('drag-over');
+                const deckId = e.dataTransfer.getData('deckId');
+                if (deckId) {
+                    await updateDeckSubject(deckId, null);
+                }
+            };
+        }
+
         uncategorizedSection.innerHTML = `
              <div class="subject-header">
-                <span class="subject-name" style="margin-left: 2rem;">Uncategorized</span>
+                <span class="subject-name" style="margin-left: 2rem;">Uncategorized Decks</span>
                 <span class="subject-count">${uncategorized.length}</span>
             </div>
             <div class="subject-content"></div>
@@ -1424,6 +1497,17 @@ function renderDeckRow(deck, container) {
     const stats = deck.stats || { total: 0, due: 0 };
     const row = document.createElement('div');
     row.className = 'deck-row';
+
+    // Add draggable attributes
+    if (state.deckTab === 'my') {
+        row.setAttribute('draggable', 'true');
+        row.ondragstart = (e) => {
+            e.dataTransfer.setData('deckId', deck.id);
+            row.classList.add('dragging');
+        };
+        row.ondragend = () => row.classList.remove('dragging');
+    }
+
     row.innerHTML = `
         <div class="deck-info">
             <span class="deck-icon">
@@ -1548,6 +1632,15 @@ function renderContextMenu(x, y, options) {
         document.addEventListener('click', closeListener);
     }, 100);
 }
+async function updateDeckSubject(deckId, subjectId) {
+    const { error } = await sb.from('decks').update({ subject_id: subjectId }).eq('id', deckId);
+    if (error) showToast(error.message, 'error');
+    else {
+        showToast('Deck moved');
+        loadDecksView(true);
+    }
+}
+
 
 function moveDeckToSubject(deck) {
     // Populate select
@@ -2823,8 +2916,8 @@ async function rateCard(rating) {
     // Track locally for session summary
     state.sessionRatings.push({ cardId: card.id, rating: rating, card: card });
 
-    // Only save progress if it's my deck
-    if (isOwner) {
+    // Save progress log for any logged in user
+    if (state.user) {
         sb.from('study_logs').insert([{
             user_id: state.user.id,
             card_id: card.id,
@@ -3475,47 +3568,181 @@ function spawnFallingWord(card, zone) {
 
 async function loadStats() {
     console.log("Loading Stats...");
-    // Fetch ONLY my logs for personal stats heatmap
+    if (!state.user) return;
+
+    // 1. Fetch Logs
     const { data: logs, error } = await sb.from('study_logs')
-        .select('id, rating, review_time, user_id')
-        .eq('user_id', state.user.id);
+        .select('id, rating, review_time, card_id')
+        .eq('user_id', state.user.id)
+        .order('review_time', { ascending: false });
+
     if (error) {
         console.error("Error loading study logs:", error);
         return;
     }
+
+    // 2. Heatmap Data & Streak
     const dailyCounts = {};
+    const datesSet = new Set();
+    let totalReviews = 0;
+    let goodEasyCount = 0;
+    const ratings = { 1: 0, 2: 0, 3: 0, 4: 0 };
+
     if (logs) {
+        totalReviews = logs.length;
         logs.forEach(log => {
-            const date = log.review_time.split('T')[0];
-            dailyCounts[date] = (dailyCounts[date] || 0) + 1;
+            const dateStr = log.review_time.split('T')[0];
+            dailyCounts[dateStr] = (dailyCounts[dateStr] || 0) + 1;
+            datesSet.add(new Date(log.review_time).toDateString());
+            ratings[log.rating] = (ratings[log.rating] || 0) + 1;
+            if (log.rating >= 3) goodEasyCount++;
         });
     }
 
     renderHeatmap(dailyCounts);
 
-    // 2. Retention (Pie Chart)
-    const ratings = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    if (logs) {
-        logs.forEach(l => ratings[l.rating] = (ratings[l.rating] || 0) + 1);
+    // Calculate Streak
+    let streak = 0;
+    if (datesSet.size > 0) {
+        let checkDate = new Date();
+        while (true) {
+            const checkStr = checkDate.toDateString();
+            if (datesSet.has(checkStr)) {
+                streak++;
+                checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+                if (streak === 0 && checkDate.toDateString() === new Date().toDateString()) {
+                    checkDate.setDate(checkDate.getDate() - 1);
+                    continue;
+                }
+                break;
+            }
+        }
     }
-    renderRetentionChart(ratings);
+
+    // Calculate Retention
+    const retentionRate = totalReviews > 0 ? Math.round((goodEasyCount / totalReviews) * 100) : 0;
+
+    // Calculate Daily Average (limit to last 30 days for more relevance)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentLogs = logs ? logs.filter(l => new Date(l.review_time) >= thirtyDaysAgo) : [];
+    const dailyAvg = Math.round(recentLogs.length / 30);
+
+    // Calculate Estimated Study Time
+    let totalTimeMs = 0;
+    if (logs && logs.length > 1) {
+        for (let i = 0; i < logs.length - 1; i++) {
+            const current = new Date(logs[i].review_time);
+            const next = new Date(logs[i + 1].review_time);
+            const diff = Math.abs(current - next);
+            if (diff < 5 * 60 * 1000) { // If less than 5 mins apart, count it as a continuous session
+                totalTimeMs += diff;
+            } else {
+                totalTimeMs += 30 * 1000; // Assume 30s for a single isolated review
+            }
+        }
+    }
+    const totalHours = (totalTimeMs / (1000 * 60 * 60)).toFixed(1);
 
     // 3. Maturity (Bar Chart)
     const { data: cards, error: cardError } = await sb.from('cards')
         .select('id, interval_days, deck_id');
+
     if (cardError) console.error("Error loading cards for maturity chart:", cardError);
 
     const maturity = { New: 0, Young: 0, Mature: 0 };
+    let masteredCount = 0;
+
     if (cards && cards.length > 0) {
         cards.forEach(c => {
             const val = Number(c.interval_days) || 0;
             if (val < 1) maturity.New++;
             else if (val < 21) maturity.Young++;
-            else maturity.Mature++;
+            else {
+                maturity.Mature++;
+                masteredCount++;
+            }
         });
+    } else if (logs && logs.length > 0) {
+        // Fallback for when cards query returns nothing (maybe RLS issue or no cards owned)
+        // Estimate maturity based on logs: if a card has multiple logs and last was Good/Easy
+        const lastRatings = new Map();
+        logs.forEach(l => {
+            if (!lastRatings.has(l.card_id)) lastRatings.set(l.card_id, l.rating);
+        });
+        lastRatings.forEach(r => {
+            if (r >= 3) maturity.Mature++;
+            else maturity.Young++;
+        });
+        masteredCount = maturity.Mature;
     }
+
+    // 4. Update UI
+    document.getElementById('stats-total-reviews').textContent = totalReviews.toLocaleString();
+    document.getElementById('stats-retention-rate').textContent = retentionRate + '%';
+    document.getElementById('stats-streak').textContent = streak;
+    document.getElementById('stats-mastered').textContent = masteredCount.toLocaleString();
+    document.getElementById('stats-daily-avg').textContent = dailyAvg;
+    document.getElementById('stats-study-time').textContent = totalHours + 'h';
+
+    renderRetentionChart(ratings);
     renderMaturityChart(maturity);
+    renderTimeOfDayChart(logs || []);
 }
+
+function renderTimeOfDayChart(logs) {
+    const stack = document.querySelector('.insights-stack');
+    if (!stack) return;
+
+    let todWrapper = document.getElementById('tod-wrapper');
+    if (!todWrapper) {
+        todWrapper = document.createElement('div');
+        todWrapper.id = 'tod-wrapper';
+        todWrapper.className = 'card';
+        todWrapper.style.marginTop = '1.5rem';
+        todWrapper.innerHTML = `
+            <h3 class="mb-4 text-lg">Hourly Activity</h3>
+            <div style="height: 200px;"><canvas id="tod-canvas"></canvas></div>
+        `;
+        stack.appendChild(todWrapper);
+    }
+
+    const canvas = document.getElementById('tod-canvas');
+    if (!canvas) return;
+
+    const hoursData = Array(24).fill(0);
+    logs.forEach(l => {
+        const h = new Date(l.review_time).getHours();
+        hoursData[h]++;
+    });
+
+    if (charts.tod) charts.tod.destroy();
+    charts.tod = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+            datasets: [{
+                data: hoursData,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, display: true, ticks: { stepSize: 10 } },
+                x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }
+            }
+        }
+    });
+}
+
 
 let charts = {};
 
@@ -3537,19 +3764,26 @@ function renderHeatmap(data = {}) {
     charts.heatmap = new Chart(canvas, {
         type: 'bar',
         data: {
-            labels: last30Days.map(d => d.date.slice(5)),
+            labels: last30Days.map(d => {
+                const date = new Date(d.date);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }),
             datasets: [{
                 label: 'Cards Reviewed',
                 data: last30Days.map(d => d.val),
-                backgroundColor: 'rgba(37, 99, 235, 0.6)',
-                borderColor: 'rgb(37, 99, 235)',
-                borderWidth: 1
+                backgroundColor: 'rgba(37, 99, 235, 0.7)',
+                borderRadius: 4,
+                hoverBackgroundColor: '#2563eb'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }
+            }
         }
     });
 }
@@ -3574,10 +3808,19 @@ function renderRetentionChart(ratings) {
             labels: ['Again', 'Hard', 'Good', 'Easy'],
             datasets: [{
                 data: data,
-                backgroundColor: ["#ef4444", "#f59e0b", "#22c55e", "#2563eb"]
+                backgroundColor: ["#f87171", "#fbbf24", "#34d399", "#60a5fa"],
+                borderWidth: 0,
+                hoverOffset: 4
             }]
         },
-        options: { responsive: true, maintainAspectRatio: false }
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+            }
+        }
     });
 }
 
@@ -3596,17 +3839,23 @@ function renderMaturityChart(data) {
     charts.maturity = new Chart(canvas, {
         type: 'bar',
         data: {
-            labels: Object.keys(data),
+            labels: ['New', 'Young', 'Mature'],
             datasets: [{
-                label: 'Card Count',
-                data: Object.values(data),
-                backgroundColor: 'rgba(100, 116, 139, 0.6)'
+                label: 'Cards',
+                data: [data.New, data.Young, data.Mature],
+                backgroundColor: ['#94a3b8', '#60a5fa', '#34d399'],
+                borderRadius: 4
             }]
         },
         options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                y: { grid: { display: false } }
+            }
         }
     });
 }
@@ -4245,3 +4494,174 @@ checkUser();
         });
     }
 })();
+
+// --- Notes Marketplace Logic ---
+
+async function initNotes() {
+    // Fetch from Supabase
+    const { data, error } = await sb.from('notes').select('*').order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error fetching notes:', error);
+        // Fallback to empty if error, or layout handles it
+        state.notes = [];
+    } else {
+        state.notes = data || [];
+    }
+    // Refresh view if we are on notes view (or just general ready state)
+    if (state.lastView === 'notes-view') loadNotesView();
+}
+
+function loadNotesView() {
+    filterNotes();
+}
+
+function filterNotes() {
+    const searchInput = document.getElementById('notes-search-input');
+    if (!searchInput) return; // Guard if view not loaded
+
+    const search = searchInput.value.toLowerCase();
+    const category = document.getElementById('filter-category').value;
+    const subject = document.getElementById('filter-subject').value;
+    const type = document.getElementById('filter-type').value;
+
+    const filtered = (state.notes || []).filter(note => {
+        const matchesSearch = note.title.toLowerCase().includes(search) ||
+            note.subject.toLowerCase().includes(search);
+        const matchesCategory = category === 'all' || note.category === category;
+        const matchesSubject = subject === 'all' || note.subject === subject;
+        const matchesType = type === 'all' || note.type === type;
+
+        return matchesSearch && matchesCategory && matchesSubject && matchesType;
+    });
+
+    renderNotes(filtered);
+}
+
+function renderNotes(notes) {
+    const grid = document.getElementById('notes-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    if (notes.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full text-center p-12 text-secondary">
+                <p class="text-lg">No notes found.</p>
+                <div class="text-sm mt-2">Try adjusting filters or checking your connection.</div>
+                <button class="btn btn-outline mt-4" onclick="resetNoteFilters()">Clear Filters</button>
+            </div>
+        `;
+        return;
+    }
+
+    notes.forEach(note => {
+        const card = document.createElement('div');
+        card.className = 'note-card';
+        card.innerHTML = `
+            <div>
+                <div class="note-header">
+                    <div class="note-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-lg">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                    </div>
+                    <span class="note-type-badge">${note.category}</span>
+                </div>
+                <h3 class="note-title" title="${note.title}">${note.title}</h3>
+                <p class="text-sm text-secondary mb-2">${note.subject}</p>
+            </div>
+            <div class="note-meta">
+                <span class="note-tag">${note.type}</span>
+            </div>
+        `;
+        card.onclick = () => openNote(note);
+        grid.appendChild(card);
+    });
+}
+
+function resetNoteFilters() {
+    document.getElementById('notes-search-input').value = '';
+    document.getElementById('filter-category').value = 'all';
+    document.getElementById('filter-subject').value = 'all';
+    document.getElementById('filter-type').value = 'all';
+    filterNotes();
+}
+
+// PDF Viewer Logic
+function openNote(note) {
+    const modal = document.getElementById('pdf-viewer-modal');
+    const title = document.getElementById('pdf-viewer-title');
+    const frame = document.getElementById('pdf-frame');
+
+    title.textContent = note.title;
+    frame.src = note.url;
+
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+document.getElementById('close-pdf-btn').addEventListener('click', () => {
+    document.getElementById('pdf-viewer-modal').classList.add('hidden');
+    document.getElementById('pdf-frame').src = ''; // Stop loading
+    document.body.style.overflow = '';
+});
+
+// Add Note Logic
+document.getElementById('add-note-btn').addEventListener('click', () => {
+    openModal('add-note-modal');
+});
+
+document.getElementById('close-add-note-btn').addEventListener('click', () => {
+    document.getElementById('add-note-modal').classList.add('hidden');
+    document.getElementById('modal-overlay').classList.add('hidden');
+});
+
+document.getElementById('add-note-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const title = document.getElementById('note-title').value;
+    const category = document.getElementById('note-category').value;
+    const subject = document.getElementById('note-subject').value;
+    const type = document.getElementById('note-type').value;
+    const url = document.getElementById('note-url').value;
+
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    const { data, error } = await sb.from('notes').insert([{
+        title,
+        category,
+        subject,
+        type,
+        url,
+        user_id: state.user.id
+    }]).select();
+
+
+    if (error) {
+        showToast(error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = originalText;
+    } else {
+        // Update state and UI
+        if (data && data.length > 0) {
+            state.notes.unshift(data[0]); // Add to top
+            filterNotes();
+        }
+
+        showToast('Note added successfully!', 'success');
+        document.getElementById('add-note-modal').classList.add('hidden');
+        document.getElementById('modal-overlay').classList.add('hidden');
+        e.target.reset();
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+});
+
+// Event Listeners for Filters
+['notes-search-input', 'filter-category', 'filter-subject', 'filter-type'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', filterNotes);
+});

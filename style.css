@@ -16,9 +16,9 @@
     --border: #e2e8f0;
     /* slate-200 */
 
-    /* Brand Colors */
     --primary: #2563eb;
     /* blue-600 */
+    --primary-rgb: 37, 99, 235;
     --primary-hover: #1d4ed8;
     /* blue-700 */
     --primary-light: #eff6ff;
@@ -3418,6 +3418,32 @@ body {
 /* Subjects */
 .subject-section {
     margin-bottom: 2rem;
+    transition: all 0.2s ease;
+    border-radius: var(--radius);
+    padding: 2px;
+}
+
+.subject-section.drag-over {
+    background: rgba(var(--primary-rgb), 0.1);
+    outline: 2px dashed var(--primary);
+    outline-offset: -2px;
+}
+
+.deck-row.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+.subject-empty-hint {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.875rem;
+    font-style: italic;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    margin: 0.5rem 1rem;
+    background: var(--background);
 }
 
 .subject-header {
@@ -4701,4 +4727,261 @@ body {
 .theme-option[data-theme="light"] {
     background: #fff !important;
     color: #1e293b !important;
+}
+
+/* Insights Stats Grid */
+.stats-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
+}
+
+.stat-card-premium {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card-premium:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-light);
+}
+
+.stat-card-premium::after {
+    content: '';
+    position: absolute;
+    bottom: -20px;
+    right: -20px;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    opacity: 0.05;
+    z-index: 0;
+}
+
+.stat-card-premium .stat-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    position: relative;
+    z-index: 1;
+}
+
+.stat-card-premium .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.1;
+    position: relative;
+    z-index: 1;
+}
+
+.stat-card-premium .stat-subtext {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    position: relative;
+    z-index: 1;
+    opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+    .stats-overview-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Notes Marketplace Styles */
+
+.notes-filters-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 2rem;
+    background: var(--surface);
+    padding: 1.5rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.notes-search {
+    flex: 1;
+    min-width: 250px;
+    margin-bottom: 0 !important;
+    /* Override generic search-container margin */
+}
+
+.filters-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.filter-select {
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    min-width: 140px;
+    width: auto !important;
+    /* Override generic select width */
+}
+
+.filter-select:hover {
+    border-color: var(--text-tertiary);
+}
+
+/* Note Card Styling */
+.note-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    height: 100%;
+    min-height: 180px;
+}
+
+.note-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+}
+
+.note-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    /* Default color */
+    transition: background 0.2s;
+}
+
+.note-card:hover::before {
+    background: var(--primary);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.note-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--background);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.note-type-badge {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--primary-light);
+    color: var(--primary);
+}
+
+.note-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.note-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+}
+
+.note-tag {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: var(--background);
+    padding: 2px 8px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+}
+
+/* PDF Viewer Modal */
+.pdf-modal-content {
+    background: var(--surface);
+    width: 90vw;
+    height: 90vh;
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+}
+
+.pdf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+}
+
+.pdf-body {
+    flex: 1;
+    background: #525659;
+    /* Standard PDF viewer background color */
+    position: relative;
+    overflow: hidden;
+}
+
+#pdf-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+/* Grid Layout for Notes (reuse grid-container but ensure it works) */
+#notes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
 }
