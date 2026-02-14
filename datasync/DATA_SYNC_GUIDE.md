@@ -13,9 +13,29 @@ Example URL: `https://grail.moe/library?category=GCE+%27O%27+Levels\u0026keyword
 ### 2. Extract and Insert Data
 Extract the document names and PDF links (found in the JSON-like script tags of the page content). Map them to Flashly categories and run the final SQL in the Supabase Editor.
 
+CATEGORY_MAP = {
+    "GCE 'O' Levels": "O Level",
+    "GCE 'A' Levels": "A Level",
+    "IB": "IB",
+    "GCE 'N' Levels": "N Level",
+    "IP": "IP",
+    "Sec 1-2 (Non IP)": "Sec 1-2",
+    "Secondary 1-2": "Sec 1-2"
+}
+
+TYPE_MAP = {
+    "Exam Papers": "Exam Papers",
+    "Notes/Practices": "Notes/Practices",
+    "TYS Answers": "TYS Answers",
+    "MYEs/CAs/Other Tests": "MYEs/CAs/Other Tests",
+    "User Mock Papers": "User Mock Papers"
+}
+
 ## Initial Sync Data (Bio Exam Papers)
 
 Copy and run the following SQL in your **Supabase SQL Editor** to add the first 10 Biology papers:
+
+Example:
 
 ```sql
 INSERT INTO public.notes (title, url, category, subject, type) VALUES ('PLMGS 2016 Bio Prelim P2 MS', 'https://document.grail.moe/f0c7aec4f29f44e2a4f38e1a7855e8c4.pdf', 'O Level', 'Pure Biology', 'Exam Papers');

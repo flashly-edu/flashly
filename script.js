@@ -59,6 +59,7 @@ const state = {
         autoFlip: false,
         showProgress: true
     },
+    isGuest: false,
     channels: {
         main: null
     },
@@ -112,6 +113,9 @@ function switchView(viewId) {
         state.lastView = viewId;
     }
 
+    // Smooth scroll to top when switching views
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
     // Creating a safety mechanism: stop any game
     stopGame();
 
@@ -119,6 +123,10 @@ function switchView(viewId) {
     if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => { });
     }
+
+    // Close mobile sidebar on navigation
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.classList.remove('active');
 }
 
 // --- Auth Logic ---
@@ -127,8 +135,10 @@ async function checkUser() {
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
         state.user = session.user;
+        state.isGuest = false;
         showApp();
     } else {
+        state.isGuest = false; // Not a guest yet, just on landing
         showAuth();
         detectLinksEarly();
     }
@@ -167,25 +177,30 @@ document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
     updateAuthUI();
 });
 
-// Landing Page Actions
-document.querySelectorAll('.btn-login-toggle').forEach(btn => {
-    btn.onclick = () => {
+// Auth Toggle Logic (Event Delegation)
+document.addEventListener('click', (e) => {
+    const loginBtn = e.target.closest('.btn-login-toggle');
+    const signupBtn = e.target.closest('.btn-signup-toggle');
+
+    if (loginBtn) {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
-        document.getElementById('guest-preview-modal').classList.add('hidden');
-        modalOverlay.classList.add('hidden');
-    };
-});
+        if (document.getElementById('guest-preview-modal')) {
+            document.getElementById('guest-preview-modal').classList.add('hidden');
+        }
+        if (typeof modalOverlay !== 'undefined') modalOverlay.classList.add('hidden');
+    }
 
-document.querySelectorAll('.btn-signup-toggle').forEach(btn => {
-    btn.onclick = () => {
+    if (signupBtn) {
         authMode = 'signup';
         updateAuthUI();
         authModal.classList.remove('hidden');
-        document.getElementById('guest-preview-modal').classList.add('hidden');
-        modalOverlay.classList.add('hidden');
-    };
+        if (document.getElementById('guest-preview-modal')) {
+            document.getElementById('guest-preview-modal').classList.add('hidden');
+        }
+        if (typeof modalOverlay !== 'undefined') modalOverlay.classList.add('hidden');
+    }
 });
 
 document.querySelector('.auth-modal-close').onclick = () => {
@@ -220,7 +235,14 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
         btn.disabled = false;
         btn.textContent = originalText;
     } else {
-        authModal.classList.add('hidden');
+        // Success - show loading animation and reload
+        const loader = document.getElementById('loading-overlay');
+        if (loader) loader.classList.remove('hidden');
+
+        // Brief delay to let the user see the "Syncing" state
+        setTimeout(() => {
+            window.location.reload();
+        }, 800);
     }
 });
 
@@ -239,19 +261,73 @@ function showAuth() {
 function showApp() {
     authView.classList.add('hidden');
     mainLayout.classList.remove('hidden');
+
     const userDisplay = document.getElementById('user-display');
-    if (userDisplay) userDisplay.textContent = state.user.email;
-    setupRealtime();
-    loadTags(); // Pre-load tags
-    loadTodayView(); // New Homepage
-    fetchUserProfile(); // Fetch custom username
-    handleDeepLinks(); // Check for ?join= or ?deck= codes
+    const logoutBtn = document.getElementById('logout-btn');
+    const sidebar = document.querySelector('.sidebar');
 
-    // Set active nav
-    updateNav('nav-today');
+    if (state.isGuest) {
+        if (sidebar) sidebar.classList.add('guest-mode');
+        if (userDisplay) userDisplay.innerHTML = `<button class="btn btn-primary btn-sm btn-login-toggle" style="width: 100%;">Sign In</button>`;
+        if (logoutBtn) logoutBtn.classList.add('hidden');
 
-    // Init Notes
-    initNotes();
+        // Force guest-friendly view for first timers
+        if (!state.user && (state.lastView === 'today-view' || !state.lastView)) {
+            updateNav('nav-community');
+            switchView('community-view');
+            loadCommunityDecks();
+        }
+    } else {
+        if (sidebar) sidebar.classList.remove('guest-mode');
+        if (userDisplay) userDisplay.textContent = state.user.email;
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        setupRealtime();
+        loadTags(); // Pre-load tags
+        loadTodayView(); // New Homepage
+        fetchUserProfile(); // Fetch custom username
+        handleDeepLinks(); // Check for ?join= or ?deck= codes
+
+        // Set active nav
+        if (state.lastView === 'today-view' || !state.lastView) {
+            updateNav('nav-today');
+        }
+    }
+
+    // Mobile UI Init
+    initMobileUI();
+}
+
+function initMobileUI() {
+    const menuToggle = document.getElementById('mobile-menu-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    const closeSidebar = document.getElementById('close-sidebar-btn');
+    const settingsMenuToggle = document.getElementById('mobile-settings-menu-toggle');
+    const settingsSidebar = document.querySelector('.settings-sidebar');
+
+    if (menuToggle && sidebar) {
+        menuToggle.onclick = () => sidebar.classList.add('active');
+    }
+
+    if (closeSidebar && sidebar) {
+        closeSidebar.onclick = () => sidebar.classList.remove('active');
+    }
+
+    if (settingsMenuToggle && settingsSidebar) {
+        settingsMenuToggle.onclick = () => {
+            settingsSidebar.classList.toggle('active');
+        };
+    }
+
+    // Close settings sidebar when a tab is clicked
+    document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+        const oldClick = btn.onclick;
+        btn.onclick = (e) => {
+            if (oldClick) oldClick(e);
+            if (window.innerWidth <= 768) {
+                settingsSidebar.classList.remove('active');
+            }
+        };
+    });
 }
 
 async function handleDeepLinks() {
@@ -333,7 +409,7 @@ function showGuestPreview(type, data) {
             </div>
             <div class="text-xs text-secondary mt-2">Sign in to see members and shared decks.</div>
         `;
-        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /></svg>`;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /> </svg>`;
     } else {
         title.textContent = "Access this Deck";
         subtitle.textContent = "Master this deck with our optimized spaced repetition system.";
@@ -341,7 +417,7 @@ function showGuestPreview(type, data) {
             <div class="font-bold text-lg">${escapeHtml(data.title)}</div>
             ${data.description ? `<div class="text-xs text-secondary mt-2">${escapeHtml(data.description)}</div>` : ''}
         `;
-        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-19.5 0A2.25 2.25 0 004.5 15h15a2.25 2.25 0 002.25-2.25m-19.5 0v.15a2.25 2.25 0 001.385 2.082l6.23 2.492a2.25 2.25 0 001.77 0l6.23-2.492a2.25 2.25 0 001.385-2.082v-.15" /></svg>`;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>`;
     }
 
     modal.classList.remove('hidden');
@@ -436,12 +512,24 @@ function applyInterfaceSettings() {
 // --- Navigation ---
 
 document.getElementById('nav-today').addEventListener('click', () => {
+    if (state.isGuest) {
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        return;
+    }
     updateNav('nav-today');
     switchView('today-view');
     loadTodayView();
 });
 
 document.getElementById('nav-decks').addEventListener('click', () => {
+    if (state.isGuest) {
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        return;
+    }
     updateNav('nav-decks');
     switchView('decks-view');
     loadDecksView();
@@ -469,6 +557,12 @@ if (sharedDecksTab) {
 }
 
 document.getElementById('nav-insights').addEventListener('click', () => {
+    if (state.isGuest) {
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        return;
+    }
     updateNav('nav-insights');
     switchView('insights-view');
     loadStats(); // Combined stats and insights loading
@@ -481,8 +575,13 @@ document.getElementById('nav-community').addEventListener('click', () => {
 });
 
 document.getElementById('nav-groups').addEventListener('click', () => {
+    if (state.isGuest) {
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        return;
+    }
     updateNav('nav-groups');
-    switchView('groups-view'); // Make sure this ID exists in HTML, or reuse decks-view logic if similar
     switchView('groups-view'); // Make sure this ID exists in HTML, or reuse decks-view logic if similar
     loadGroups();
 });
@@ -497,6 +596,12 @@ document.getElementById('nav-notes').addEventListener('click', () => {
 
 // Settings
 document.getElementById('nav-settings').addEventListener('click', () => {
+    if (state.isGuest) {
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        return;
+    }
     initSettingsModal();
     openModal('settings-modal');
 });
@@ -2040,6 +2145,12 @@ async function openDeck(deck) {
 }
 
 async function importDeck(deckId) {
+    if (state.isGuest) {
+        // Fetch deck for preview modal
+        const { data: deck } = await sb.from('decks').select('id, title, description').eq('id', deckId).maybeSingle();
+        if (deck) showGuestPreview('deck', deck);
+        return;
+    }
     showToast('Importing deck...', 'info');
 
     // 1. Fetch deck and cards
@@ -2539,6 +2650,10 @@ document.getElementById('add-to-group-form').onsubmit = async (e) => {
 const customStudyBtn = document.getElementById('custom-study-btn');
 if (customStudyBtn) {
     customStudyBtn.addEventListener('click', () => {
+        if (state.isGuest) {
+            showGuestPreview('deck', state.currentDeck);
+            return;
+        }
         // Populate tag filter
         const select = document.getElementById('custom-study-tag-filter');
         select.innerHTML = '<option value="">All Tags</option>';
@@ -2560,6 +2675,12 @@ document.getElementById('custom-study-form').addEventListener('submit', (e) => {
 });
 
 document.getElementById('study-deck-btn').addEventListener('click', () => {
+    if (state.isGuest) {
+        if (state.currentDeck) {
+            showGuestPreview('deck', state.currentDeck);
+        }
+        return;
+    }
     state.studySessionConfig = { type: 'standard' };
     startStudySession();
 });
@@ -3394,6 +3515,10 @@ document.getElementById('create-group-deck-btn').onclick = () => {
 
 document.getElementById('play-game-btn').addEventListener('click', () => {
     if (!state.currentDeck) return;
+    if (state.isGuest) {
+        showGuestPreview('deck', state.currentDeck);
+        return;
+    }
     state.gameOrigin = state.lastView; // Track origin
     switchView('game-view');
     document.getElementById('game-menu').classList.remove('hidden');
@@ -4497,23 +4622,57 @@ checkUser();
 
 // --- Notes Marketplace Logic ---
 
-async function initNotes() {
-    // Fetch from Supabase
-    const { data, error } = await sb.from('notes').select('*').order('created_at', { ascending: false });
+async function initNotes(loadMore = false) {
+    if (state.notesLoading || (state.notesLoaded && !loadMore)) return;
+    state.notesLoading = true;
+
+    const limit = 10;
+    if (!state.notes) state.notes = [];
+    const offset = loadMore ? state.notes.length : 0;
+
+    // Fetch from Supabase with range (0-indexed inclusive)
+    const { data, error } = await sb.from('notes')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit);
+
+    state.notesLoading = false;
 
     if (error) {
         console.error('Error fetching notes:', error);
-        // Fallback to empty if error, or layout handles it
-        state.notes = [];
+        if (!loadMore) state.notes = [];
     } else {
-        state.notes = data || [];
+        const fetched = data || [];
+        const hasMore = fetched.length > limit;
+        const actual = hasMore ? fetched.slice(0, limit) : fetched;
+
+        if (loadMore) {
+            state.notes = [...state.notes, ...actual];
+        } else {
+            state.notes = actual;
+        }
+        state.hasMoreNotes = hasMore;
+        state.notesLoaded = true;
     }
-    // Refresh view if we are on notes view (or just general ready state)
-    if (state.lastView === 'notes-view') loadNotesView();
+    // Refresh view
+    loadNotesView();
 }
 
-function loadNotesView() {
-    filterNotes();
+async function loadMoreNotes() {
+    const btn = document.querySelector('#notes-footer .btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Loading...';
+    }
+    await initNotes(true);
+}
+
+async function loadNotesView() {
+    if (!state.notesLoaded) {
+        await initNotes();
+    } else {
+        filterNotes();
+    }
 }
 
 function filterNotes() {
@@ -4543,6 +4702,8 @@ function renderNotes(notes) {
     if (!grid) return;
     grid.innerHTML = '';
 
+    const footer = document.getElementById('notes-footer');
+
     if (notes.length === 0) {
         grid.innerHTML = `
             <div class="col-span-full text-center p-12 text-secondary">
@@ -4551,6 +4712,7 @@ function renderNotes(notes) {
                 <button class="btn btn-outline mt-4" onclick="resetNoteFilters()">Clear Filters</button>
             </div>
         `;
+        if (footer) footer.innerHTML = '';
         return;
     }
 
@@ -4577,6 +4739,23 @@ function renderNotes(notes) {
         card.onclick = () => openNote(note);
         grid.appendChild(card);
     });
+
+    // Update Footer
+    if (footer) {
+        if (state.hasMoreNotes) {
+            footer.innerHTML = `
+                <button class="btn btn-outline" onclick="loadMoreNotes()" style="margin-top: 1rem;">
+                    View More
+                </button>
+            `;
+        } else if (state.notes.length > 0) {
+            footer.innerHTML = `
+                <p class="text-dim text-sm italic">That's everything for now!</p>
+            `;
+        } else {
+            footer.innerHTML = '';
+        }
+    }
 }
 
 function resetNoteFilters() {

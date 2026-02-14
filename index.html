@@ -21,6 +21,17 @@
 </head>
 
 <body>
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loading-content">
+            <div class="loading-logo-container">
+                <img src="./Assets/logo.png" alt="Flashly Logo" class="loading-logo" style="border-radius: 50%;">
+                <div class="loading-ring"></div>
+            </div>
+            <p>Syncing your knowledge...</p>
+        </div>
+    </div>
+
     <div id="app">
         <!-- Landing & Auth View -->
         <section id="auth-view" class="view hidden">
@@ -35,113 +46,174 @@
                 </div>
             </nav>
 
-            <div class="landing-hero">
-                <div class="hero-container">
-                    <div class="hero-content">
-                        <span class="hero-badge">New: Group Study Mode</span>
-                        <h1>Master anything with <span>spaced repetition.</span></h1>
+            <!-- Hero Section -->
+            <section class="landing-page-section landing-hero-revamp">
+                <div class="section-content-wrapper">
+                    <div class="landing-text-block">
+                        <span class="feature-pill">The Future of Learning</span>
+                        <h2>Master anything with <span>spaced repetition.</span></h2>
                         <p>Flashly is the minimalist's choice for effective learning. Create, share, and master decks
-                            with a beautiful interface designed for focus.</p>
-                        <div class="hero-btns">
+                            with a beautiful interface designed for absolute focus.</p>
+                        <div class="hero-btns" style="display:flex; gap:1rem;">
                             <button class="btn btn-primary btn-lg btn-signup-toggle">Start Learning for Free</button>
-                            <button class="btn btn-secondary btn-lg"
-                                onclick="document.getElementById('features-anchor').scrollIntoView({behavior: 'smooth'})">Learn
-                                More</button>
+                            <button class="btn btn-secondary btn-lg" onclick="state.isGuest = true; showApp();">Browse
+                                Community Decks & Notes</button>
                         </div>
                     </div>
-                    <div class="hero-visual">
-                        <div class="app-mockup">
+                    <div class="landing-visual-block">
+                        <div class="hero-mockup">
                             <img src="./Assets/deck-graphic-light.svg" alt="Flashly App Interface"
-                                style="width: 100%; height: auto; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
-                            <div class="mockup-overlay"></div>
+                                style="width: 100%; height: auto; border-radius: 8px;">
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div id="features-anchor" class="landing-features-section">
-                <div class="section-container">
-                    <div class="section-tag">Features</div>
-                    <h2>Everything you need, nothing you don't.</h2>
-                    <div class="features-grid">
-                        <div class="feature-card">
-                            <div class="feature-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="icon-lg">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-                                </svg>
+            <!-- Science Section (SRS) -->
+            <section class="landing-page-section" style="background: var(--surface);">
+                <div class="section-content-wrapper" style="grid-template-columns: 1fr 1fr;">
+                    <div class="landing-visual-block" style="order: 2;">
+                        <div class="srs-mockup" style="transform: perspective(1000px) rotateY(10deg) rotateX(5deg);">
+                            <div class="flex flex-col gap-4">
+                                <div class="card" style="border-left: 4px solid var(--primary);">
+                                    <div class="text-sm font-bold text-primary mb-1">REVIEW DUE</div>
+                                    <div class="text-lg font-semibold">"Photosynthesis Process"</div>
+                                    <div class="text-xs text-secondary mt-2">Last seen 3 days ago</div>
+                                </div>
+                                <div class="card" style="opacity: 0.6;">
+                                    <div class="text-sm font-bold text-secondary mb-1">STABLE</div>
+                                    <div class="text-lg font-semibold">"Mitochondria Function"</div>
+                                    <div class="text-xs text-secondary mt-2">Review in 14 days</div>
+                                </div>
                             </div>
-                            <h3>Shared Groups</h3>
-                            <p>Collaborate with friends or classmates. Share decks and track progress together.</p>
                         </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="icon-lg">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                                </svg>
+                    </div>
+                    <div class="landing-text-block" style="order: 1;">
+                        <span class="feature-pill">The Algorithm</span>
+                        <h2>Beat the forgetting curve.</h2>
+                        <p>Our optimized Spaced Repetition System (SRS) predicts exactly when you're about to forget a
+                            concept and surfaces it for review at the perfect moment.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Community Section -->
+            <section class="landing-page-section">
+                <div class="section-content-wrapper">
+                    <div class="landing-text-block">
+                        <span class="feature-pill">Community</span>
+                        <h2>Learn from the best.</h2>
+                        <p>Access thousands of student-made decks and premium notes. GCE 'O' Levels, IB, or
+                            University—whatever you're studying, someone has already mastered it here.</p>
+                        <button class="btn btn-secondary btn-lg"
+                            onclick="state.isGuest = true; showApp(); loadCommunityDecks();">Explore Decks</button>
+                    </div>
+                    <div class="landing-visual-block">
+                        <div class="community-mockup">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="card p-4 text-center">
+                                    <div class="text-2xl mb-1">🧪</div>
+                                    <div class="text-sm font-bold">Pure Chemistry</div>
+                                    <div class="text-xs text-secondary">1.2k Cards</div>
+                                </div>
+                                <div class="card p-4 text-center">
+                                    <div class="text-2xl mb-1">📐</div>
+                                    <div class="text-sm font-bold">A-Maths</div>
+                                    <div class="text-xs text-secondary">850 Cards</div>
+                                </div>
+                                <div class="card p-4 text-center">
+                                    <div class="text-2xl mb-1">🌍</div>
+                                    <div class="text-sm font-bold">Geography</div>
+                                    <div class="text-xs text-secondary">430 Cards</div>
+                                </div>
                             </div>
-                            <h3>SRS Algorithm</h3>
-                            <p>Our optimized spaced repetition algorithm ensures you remember more in less time.</p>
-                        </div>
-                        <div class="feature-card">
-                            <div class="feature-icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke-width="1.5" stroke="currentColor" class="icon-lg">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
-                                </svg>
-                            </div>
-                            <h3>Rich Analytics</h3>
-                            <p>Visualize your learning journey with heatmaps and retention charts.</p>
                         </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Auth Modal/Overlay -->
-            <div id="auth-modal" class="auth-modal-overlay hidden">
-                <div class="auth-modal">
-                    <button class="auth-modal-close btn-icon-only">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                            stroke="currentColor" class="icon-sm">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                    <div class="auth-box">
-                        <div class="auth-header">
-                            <h3 id="auth-title">Welcome Back</h3>
-                            <p id="auth-subtitle">Log in to your Flashly account</p>
+            <!-- Analytics Section -->
+            <section class="landing-page-section" style="background: var(--surface);">
+                <div class="section-content-wrapper" style="grid-template-columns: 1fr 1fr;">
+                    <div class="landing-visual-block" style="order: 2;">
+                        <div class="analytics-mockup"
+                            style="transform: perspective(1000px) rotateY(10deg) rotateX(5deg);">
+                            <div class="card" style="padding: 1.5rem;">
+                                <div class="text-sm font-bold mb-4">RETENTION RATE</div>
+                                <div
+                                    style="height: 120px; width: 100%; background: linear-gradient(0deg, var(--primary-light) 0%, transparent 100%); border-radius: 4px; display: flex; align-items: flex-end; gap: 4px; padding: 10px;">
+                                    <div style="height: 40%; flex: 1; background: var(--primary); border-radius: 2px;">
+                                    </div>
+                                    <div style="height: 60%; flex: 1; background: var(--primary); border-radius: 2px;">
+                                    </div>
+                                    <div style="height: 55%; flex: 1; background: var(--primary); border-radius: 2px;">
+                                    </div>
+                                    <div style="height: 80%; flex: 1; background: var(--primary); border-radius: 2px;">
+                                    </div>
+                                    <div style="height: 95%; flex: 1; background: var(--primary); border-radius: 2px;">
+                                    </div>
+                                </div>
+                                <div class="text-xl font-bold mt-4">94.2%</div>
+                            </div>
                         </div>
-                        <form id="auth-form">
-                            <div class="input-group">
-                                <label for="email">Email address</label>
-                                <input type="email" id="email" required placeholder="you@example.com">
-                            </div>
-                            <div class="input-group">
-                                <label for="password">Password</label>
-                                <input type="password" id="password" required placeholder="••••••••">
-                            </div>
-                            <button type="submit" id="auth-submit" class="btn btn-primary btn-full">Sign In</button>
-                        </form>
-                        <p class="auth-footer">
-                            <span id="auth-toggle-text">Don't have an account?</span>
-                            <a href="#" id="auth-toggle-link">Sign Up</a>
-                        </p>
+                    </div>
+                    <div class="landing-text-block" style="order: 1;">
+                        <span class="feature-pill">Performance</span>
+                        <h2>Visualize your growth.</h2>
+                        <p>Track your daily streaks, retention rates, and card maturity levels. Turn your learning into
+                            an interactive journey with beautiful, data-driven insights.</p>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <footer class="landing-footer">
-                <div class="footer-container">
+            <!-- Groups Section -->
+            <section class="landing-page-section">
+                <div class="section-content-wrapper">
+                    <div class="landing-text-block">
+                        <span class="feature-pill">Collaboration</span>
+                        <h2>Study better, together.</h2>
+                        <p>Create shared groups to collaborate on decks with classmates. Compete on leaderboards and
+                            track group-wide mastery in real-time.</p>
+                        <button class="btn btn-primary btn-lg btn-signup-toggle">Form a Group</button>
+                    </div>
+                    <div class="landing-visual-block">
+                        <div class="groups-mockup">
+                            <div class="card p-4">
+                                <div class="flex items-center gap-2 mb-4">
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs">
+                                        J</div>
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-white text-xs">
+                                        A</div>
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-warning flex items-center justify-center text-white text-xs">
+                                        K</div>
+                                    <div class="text-xs text-secondary">+12 active</div>
+                                </div>
+                                <div class="text-sm font-bold mb-2 text-primary">Class of 2026 - Bio</div>
+                                <div class="progress-bar-container"
+                                    style="height: 6px; background: var(--background); border-radius: 3px;">
+                                    <div
+                                        style="width: 75%; height: 100%; background: var(--primary); border-radius: 3px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+
+            <footer class="landing-footer" style="padding: 4rem 2rem; border-top: 1px solid var(--border);">
+                <div class="footer-container"
+                    style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
                     <p>&copy; 2026 Flashly. Built for focused learners.</p>
-                    <div class="footer-links">
-                        <a href="privacy/index.html">Privacy</a>
-                        <a href="support/index.html">Support</a>
+                    <div class="footer-links" style="display: flex; gap: 2rem;">
+                        <a href="privacy/index.html"
+                            style="color: var(--text-secondary); text-decoration: none;">Privacy</a>
+                        <a href="support/index.html"
+                            style="color: var(--text-secondary); text-decoration: none;">Support</a>
                     </div>
                 </div>
             </footer>
@@ -149,10 +221,32 @@
 
         <!-- Main App Layout -->
         <div id="main-layout" class="hidden app-shell">
+            <!-- Mobile Header -->
+            <header class="mobile-header">
+                <button id="mobile-menu-toggle" class="btn-icon-only">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor" class="icon-md">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                </button>
+                <div class="mobile-logo">Flashly</div>
+                <div style="width: 40px;"></div> <!-- Spacer -->
+            </header>
+
             <!-- Sidebar -->
             <aside class="sidebar">
-                <div class="sidebar-logo">
-                    <img src="./Assets/logo.png" alt="Flashly Logo" class="logo-img" style="width: 50px; height: 50px;">
+                <div class="sidebar-header-mobile">
+                    <div class="sidebar-logo">
+                        <img src="./Assets/logo.png" alt="Flashly Logo" class="logo-img"
+                            style="width: 40px; height: 40px;">
+                    </div>
+                    <button id="close-sidebar-btn" class="btn-icon-only">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-md">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 <nav class="sidebar-nav">
@@ -307,8 +401,8 @@
                                     </svg>
                                     New Deck
                                 </button>
-                                <button id="create-subject-btn" class="btn btn-secondary"
-                                    style="display:flex; justify-content: flex-end;" onclick="createSubject()">
+                                <button id="create-subject-btn" class="btn btn-secondary" style="display:flex;"
+                                    onclick="createSubject()">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
                                         class="icon-sm">
                                         <path
@@ -369,7 +463,7 @@
                                 <h3 class="mb-4 text-lg">Activity Heatmap</h3>
                                 <div id="calendar-heatmap" style="width: 100%; height: 200px;"></div>
                             </div>
-                            <div class="grid grid-cols-2 gap-6"
+                            <div class="grid grid-cols-2 gap-6 insights-grid"
                                 style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                                 <div class="card">
                                     <h3 class="mb-4 text-lg">Retention & Maturity</h3>
@@ -609,10 +703,15 @@
                         <div id="notes-grid" class="grid-container">
                             <!-- Notes injected here -->
                         </div>
+
+                        <!-- Notes Footer (View More) -->
+                        <div id="notes-footer" class="flex justify-center p-8">
+                            <!-- View More button or "nothing left" message injected here -->
+                        </div>
                     </section>
 
                     <!-- PDF Viewer Modal -->
-                    <div id="pdf-viewer-modal" class="modal-overlay hidden" style="z-index: 200;">
+                    <div id="pdf-viewer-modal" class="modal-overlay hidden">
                         <div class="pdf-modal-content">
                             <div class="pdf-header">
                                 <h3 id="pdf-viewer-title" class="text-lg font-bold">Note Title</h3>
@@ -623,8 +722,9 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div class="pdf-body">
-                                <iframe id="pdf-frame" src="" width="100%" height="100%" frameborder="0"></iframe>
+                            <div class="pdf-body" style="overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1;">
+                                <iframe id="pdf-frame" src="" width="100%" height="100%" frameborder="0"
+                                    style="display: block; min-height: 100%;"></iframe>
                             </div>
                         </div>
                     </div>
@@ -755,7 +855,7 @@
                                             Add Card
                                         </button>
                                         <button class="btn btn-primary btn-sm dropdown-btn"
-                                            id="add-card-dropdown-toggle" style="height: 100%; align-self: stretch;">
+                                            id="add-card-dropdown-toggle" style="height: 100%;">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                                 stroke-width="2" stroke="currentColor" class="icon-xs">
                                                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -1211,6 +1311,24 @@
             <!-- Settings Modal -->
             <div id="settings-modal" class="modal hidden"
                 style="max-width: 850px; width: 95%; padding: 0; overflow: hidden; display: flex; flex-direction: row; height: 600px; max-height: 90vh;">
+                <!-- Mobile Settings Header -->
+                <header class="mobile-settings-header">
+                    <button id="mobile-settings-menu-toggle" class="btn-icon-only">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-md">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                    </button>
+                    <span>Settings</span>
+                    <button class="btn-icon-only close-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </header>
+
                 <!-- Settings Sidebar -->
                 <div class="settings-sidebar"
                     style="width: 240px; background: var(--background); border-right: 1px solid var(--border); padding: 1.5rem 0; display: flex; flex-direction: column;">
@@ -1855,6 +1973,39 @@
                 </form>
             </div>
         </div> <!-- End Modal Overlay -->
+
+        <!-- Auth Modal/Overlay -->
+        <div id="auth-modal" class="auth-modal-overlay hidden">
+            <div class="auth-modal">
+                <button class="auth-modal-close btn-icon-only">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="icon-sm">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div class="auth-box">
+                    <div class="auth-header">
+                        <h3 id="auth-title">Welcome Back</h3>
+                        <p id="auth-subtitle">Log in to your Flashly account</p>
+                    </div>
+                    <form id="auth-form">
+                        <div class="input-group">
+                            <label for="email">Email address</label>
+                            <input type="email" id="email" required placeholder="you@example.com">
+                        </div>
+                        <div class="input-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" required placeholder="••••••••">
+                        </div>
+                        <button type="submit" id="auth-submit" class="btn btn-primary btn-full">Sign In</button>
+                    </form>
+                    <p class="auth-footer">
+                        <span id="auth-toggle-text">Don't have an account?</span>
+                        <a href="#" id="auth-toggle-link">Sign Up</a>
+                    </p>
+                </div>
+            </div>
+        </div>
 
         <!-- Toast Notification Container -->
         <div id="toast-container"></div>
