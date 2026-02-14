@@ -4623,40 +4623,90 @@ checkUser();
 // --- Notes Marketplace Logic ---
 
 async function initNotes(loadMore = false) {
-    if (state.notesLoading || (state.notesLoaded && !loadMore)) return;
+    if (state.notesLoading) return;
     state.notesLoading = true;
 
-    const limit = 10;
-    if (!state.notes) state.notes = [];
-    const offset = loadMore ? state.notes.length : 0;
+    // Get filter values
+    const searchInput = document.getElementById('notes-search-input');
+    const search = searchInput ? searchInput.value.trim() : '';
+    const categoryEl = document.getElementById('filter-category');
+    const category = categoryEl ? categoryEl.value : 'all';
+    const subjectEl = document.getElementById('filter-subject');
+    const subject = subjectEl ? subjectEl.value : 'all';
+    const typeEl = document.getElementById('filter-type');
+    const type = typeEl ? typeEl.value : 'all';
 
-    // Fetch from Supabase with range (0-indexed inclusive)
-    const { data, error } = await sb.from('notes')
-        .select('*')
+    const limit = 10;
+    // If not loading more (i.e., new search/filter), reset list
+    if (!loadMore) {
+        state.notes = [];
+    }
+    const offset = state.notes.length;
+
+    // Build query with filters
+    let query = sb.from('notes')
+        .select('*', { count: 'exact' }) // Get count to know if there are more
         .order('created_at', { ascending: false })
-        .range(offset, offset + limit);
+        .range(offset, offset + limit - 1); // Range is inclusive
+
+    if (search) {
+        // Use text search on title or subject
+        query = query.or(`title.ilike.%${search}%,subject.ilike.%${search}%`);
+    }
+    if (category !== 'all') {
+        query = query.eq('category', category);
+    }
+    if (subject !== 'all') {
+        query = query.eq('subject', subject);
+    }
+    if (type !== 'all') {
+        query = query.eq('type', type);
+    }
+
+    const { data, error, count } = await query;
 
     state.notesLoading = false;
 
     if (error) {
         console.error('Error fetching notes:', error);
         if (!loadMore) state.notes = [];
+        state.hasMoreNotes = false;
     } else {
         const fetched = data || [];
-        const hasMore = fetched.length > limit;
-        const actual = hasMore ? fetched.slice(0, limit) : fetched;
 
         if (loadMore) {
-            state.notes = [...state.notes, ...actual];
+            state.notes = [...state.notes, ...fetched];
         } else {
-            state.notes = actual;
+            state.notes = fetched;
         }
-        state.hasMoreNotes = hasMore;
-        state.notesLoaded = true;
+
+        // Determine if there are more results based on total count
+        // If current length is less than total count, we have more
+        state.hasMoreNotes = (state.notes.length < count);
     }
-    // Refresh view
-    loadNotesView();
+
+    // We are no longer filtering client-side
+    state.notesLoaded = true;
+    renderNotes(state.notes);
 }
+
+// Debounce helper for search input
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// This function is now just a trigger for the API call
+const handleNoteFilterChange = debounce(() => {
+    initNotes(false); // Reset and search
+}, 500);
 
 async function loadMoreNotes() {
     const btn = document.querySelector('#notes-footer .btn');
@@ -4664,37 +4714,21 @@ async function loadMoreNotes() {
         btn.disabled = true;
         btn.textContent = 'Loading...';
     }
-    await initNotes(true);
+    await initNotes(true); // Load next page
 }
 
-async function loadNotesView() {
-    if (!state.notesLoaded) {
-        await initNotes();
+function loadNotesView() {
+    // Just initial load if empty
+    if (!state.notes || state.notes.length === 0) {
+        initNotes(false);
     } else {
-        filterNotes();
+        renderNotes(state.notes);
     }
 }
 
+// Replaces the old client-side filter
 function filterNotes() {
-    const searchInput = document.getElementById('notes-search-input');
-    if (!searchInput) return; // Guard if view not loaded
-
-    const search = searchInput.value.toLowerCase();
-    const category = document.getElementById('filter-category').value;
-    const subject = document.getElementById('filter-subject').value;
-    const type = document.getElementById('filter-type').value;
-
-    const filtered = (state.notes || []).filter(note => {
-        const matchesSearch = note.title.toLowerCase().includes(search) ||
-            note.subject.toLowerCase().includes(search);
-        const matchesCategory = category === 'all' || note.category === category;
-        const matchesSubject = subject === 'all' || note.subject === subject;
-        const matchesType = type === 'all' || note.type === type;
-
-        return matchesSearch && matchesCategory && matchesSubject && matchesType;
-    });
-
-    renderNotes(filtered);
+    handleNoteFilterChange();
 }
 
 function renderNotes(notes) {
@@ -4763,7 +4797,7 @@ function resetNoteFilters() {
     document.getElementById('filter-category').value = 'all';
     document.getElementById('filter-subject').value = 'all';
     document.getElementById('filter-type').value = 'all';
-    filterNotes();
+    handleNoteFilterChange();
 }
 
 // PDF Viewer Logic
