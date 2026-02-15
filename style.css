@@ -1935,8 +1935,18 @@ body {
         padding: 0;
         font-size: 0.875rem;
     }
+
+    .sidebar-nav-header {
+        display: none;
+    }
 }
 
+.sidebar-nav-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
 
 /* Dashboard / Decks */
 .section-header {
@@ -4965,13 +4975,13 @@ body {
     }
 
     .nav-item.active {
-        background: var(--primary);
-        color: white;
+        background: var(--primary-light);
+        color: var(--primary);
         border-color: var(--primary);
     }
 
     .nav-item.active svg {
-        color: white;
+        color: var(--primary);
     }
 
     .sidebar-footer {

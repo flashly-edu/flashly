@@ -3,7 +3,7 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    const toggleBtn = document.getElementById('mobile-menu-toggle');
+    const toggleBtn = document.getElementById('landing-mobile-menu-toggle');
     const navModal = document.getElementById('mobile-nav-modal');
 
     if (!toggleBtn || !navModal) return;
