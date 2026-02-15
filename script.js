@@ -1,8 +1,3 @@
-// Redirect logic for old domain
-if (window.location.href.startsWith('https://zandenkoh.github.io/flashly/')) {
-    window.location.replace(window.location.href.replace('https://zandenkoh.github.io/flashly/', 'https://flashly-edu.github.io/flashly/'));
-}
-
 // Initialize Supabase
 // NOTE: This is the public 'anon' key. It is safe to expose in the browser as long as Row Level Security (RLS) is enabled in Supabase.
 const supabaseUrl = 'https://grgcynxsmanqfsgkiytu.supabase.co';
@@ -286,10 +281,13 @@ if (googleAuthBtn) {
         const loader = document.getElementById('loading-overlay');
         if (loader) loader.classList.remove('hidden');
 
+        // Get base URL without query params to ensure clean redirect
+        const baseUrl = window.location.origin + window.location.pathname;
+
         const { error } = await sb.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: window.location.href, // Redirect back to current page
+                redirectTo: baseUrl, // Redirect back to current domain
                 queryParams: {
                     access_type: 'offline',
                     prompt: 'consent',
