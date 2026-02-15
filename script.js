@@ -158,13 +158,26 @@ function switchView(viewId) {
 // --- Auth Logic ---
 
 async function checkUser() {
+    // Check for redirect params to show loader immediately
+    const isRedirect = window.location.hash && (window.location.hash.includes('access_token') || window.location.hash.includes('type=recovery'));
+    const loader = document.getElementById('loading-overlay');
+
+    if (isRedirect && loader) loader.classList.remove('hidden');
+
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
+        // Ensure loader is visible while initializing app
+        if (loader) loader.classList.remove('hidden');
+
         state.user = session.user;
         state.isGuest = false;
         await showApp();
+
+        // Hide loader when app is ready
+        if (loader) loader.classList.add('hidden');
     } else {
-        state.isGuest = false; // Not a guest yet, just on landing
+        if (loader) loader.classList.add('hidden'); // Ensure hidden if no session
+        state.isGuest = false;
         showAuth();
         detectLinksEarly();
     }
@@ -1566,10 +1579,14 @@ async function loadTodayCommunity() {
 
     // Latest 3 public decks
     const { data: decks, error } = await sb.from('decks')
-        .select('*, profiles(username), subjects(name)')
+        .select('*, profiles:user_id(username), subjects(name)')
         .eq('is_public', true)
         .order('created_at', { ascending: false })
         .limit(3);
+
+    if (error) {
+        console.error("Error loading today community decks:", error);
+    }
 
     if (error || !decks || decks.length === 0) {
         document.getElementById('today-community-section').classList.add('hidden');
@@ -1644,7 +1661,6 @@ async function loadTodayNotes(subjects) {
             </div>
             <h4 class="font-semibold text-base mb-2 line-clamp-2">${escapeHtml(note.title)}</h4>
             <p class="text-xs text-dim mb-4">${escapeHtml(note.category || '')}</p>
-            <button class="btn btn-sm btn-text w-full" style="justify-content: center; margin-top: auto; background: var(--primary); color: white">Open Note</button>
         `;
         div.onclick = () => {
             state.lastView = 'today-view';
@@ -2524,10 +2540,24 @@ async function openDeck(deck) {
     }
 
     const dueEl = document.getElementById('deck-due-count');
-    if (dueEl) dueEl.textContent = stats.due || 0;
+    if (dueEl) {
+        dueEl.textContent = stats.due || 0;
+        dueEl.parentElement.style.cursor = 'pointer';
+        dueEl.parentElement.onclick = () => {
+            state.studySessionConfig = { type: 'due' };
+            startStudySession();
+        };
+    }
 
     const newEl = document.getElementById('deck-new-count');
-    if (newEl) newEl.textContent = stats.new || 0;
+    if (newEl) {
+        newEl.textContent = stats.new || 0;
+        newEl.parentElement.style.cursor = 'pointer';
+        newEl.parentElement.onclick = () => {
+            state.studySessionConfig = { type: 'new' };
+            startStudySession();
+        };
+    }
 
     const totalEl = document.getElementById('deck-total-count');
     if (totalEl) totalEl.textContent = stats.total || 0;
@@ -3345,7 +3375,13 @@ async function startStudySession(restart = false) {
     let queue = [];
     const config = state.studySessionConfig || { type: 'standard' };
 
-    if (config.type === 'custom') {
+    if (config.type === 'due') {
+        const now = new Date();
+        // Match stats logic: interval > 0 AND due <= now
+        queue = allCards.filter(c => c.interval_days > 0 && c.due_at && new Date(c.due_at) <= now);
+    } else if (config.type === 'new') {
+        queue = allCards.filter(c => !c.interval_days || c.interval_days === 0);
+    } else if (config.type === 'custom') {
         queue = allCards;
         if (config.tagId) {
             queue = queue.filter(c => c.card_tags.some(ct => ct.tag_id === config.tagId));
@@ -3739,17 +3775,112 @@ async function finishStudySession() {
     }
 }
 
-function exitStudyMode() {
+async function exitStudyMode() {
     const target = state.studyOrigin || 'decks-view';
+    const deckId = state.currentDeck ? state.currentDeck.id : null;
 
     if (target === 'deck-view' && state.currentDeck) {
+        // 1. Immediate Navigation with current state (stale but fast)
         openDeck(state.currentDeck);
+
+        // 2. Background Refresh of Global Decks
+        loadDecksView(true).then(() => {
+            // Update global state silently
+            if (deckId) {
+                const updated = state.decks.find(d => d.id === deckId);
+                if (updated) state.currentDeck = updated;
+            }
+        });
+
+        // 3. Fast Targeted Refresh of Current Deck Stats
+        if (deckId) {
+            refreshDeckStatsOnly(deckId); // Helper to update just the numbers
+        }
+
     } else if (target === 'today-view') {
         switchView('today-view');
         loadTodayView();
+        loadDecksView(true); // Background refresh
     } else {
         switchView('decks-view');
-        loadDecksView();
+        loadDecksView(true);
+    }
+}
+
+// New helper to update just the stats on the screen without full re-render
+async function refreshDeckStatsOnly(deckId) {
+    // Re-calculate stats for this specific deck similar to loadDecksView
+    const now = new Date();
+
+    // Fetch just cards for this deck to get fresh due/new counts
+    const { data: cards } = await sb.from('cards')
+        .select('id, interval_days, due_at')
+        .eq('deck_id', deckId);
+
+    if (!cards) return;
+
+    // Fetch study logs for mastery
+    // Optimization: potentially we could just fetch logs for this deck? 
+    // But logs are by user. Let's just fetch logs for this user filtering by cards in this deck if possible, 
+    // or just limit 1000 latest.
+    // For speed, let's just calc from what we have or do a quick query.
+    // Actually, `loadDecksView` does a heavy query.
+    // Let's do a lighter query here.
+
+    const { data: logs } = await sb.from('study_logs')
+        .select('card_id, rating')
+        .eq('user_id', state.user.id)
+        .order('review_time', { ascending: false })
+        .limit(2000); // Reasonable limit
+
+    const cardMastery = new Set();
+    if (logs) {
+        const seen = new Set();
+        logs.forEach(log => {
+            if (!seen.has(log.card_id)) {
+                seen.add(log.card_id);
+                if (log.rating >= 3) cardMastery.add(log.card_id);
+            }
+        });
+    }
+
+    let stats = { total: cards.length, due: 0, new: 0, mature: 0 };
+    cards.forEach(card => {
+        const interval = Number(card.interval_days || 0);
+        if (interval === 0) stats.new++;
+        if (interval > 0 && (card.due_at && new Date(card.due_at) <= now)) stats.due++;
+        if (cardMastery.has(card.id)) stats.mature++;
+    });
+
+    // Directly update DOM elements if we are still on the deck view
+    if (state.currentDeck && state.currentDeck.id === deckId && !document.getElementById('deck-view').classList.contains('hidden')) {
+        const dueEl = document.getElementById('deck-due-count');
+        const newEl = document.getElementById('deck-new-count');
+        const totalEl = document.getElementById('deck-total-count');
+        const masteryEl = document.getElementById('deck-mastery-percent');
+        const circleFill = document.getElementById('deck-mastery-circle-fill');
+
+        if (dueEl) dueEl.textContent = stats.due;
+        if (newEl) newEl.textContent = stats.new;
+        if (totalEl) totalEl.textContent = stats.total;
+
+        const mastery = stats.total > 0 ? Math.round((stats.mature / stats.total) * 100) : 0;
+        if (masteryEl) masteryEl.textContent = `${mastery}%`;
+        if (circleFill) {
+            const circumference = 283;
+            const offset = circumference - (mastery / 100) * circumference;
+            circleFill.style.strokeDashoffset = offset;
+        }
+
+        // Also update the in-memory deck object stats so if we navigate away and back it's correct
+        if (state.currentDeck) {
+            state.currentDeck.stats = stats;
+        }
+        // And update it in the main decks array if found
+        const deckInList = state.decks.find(d => d.id === deckId);
+        if (deckInList) {
+            deckInList.stats = stats;
+        }
     }
 }
 
@@ -3768,7 +3899,9 @@ if (quitStudyBtn) {
 
 async function loadGroups() {
     const grid = document.getElementById('groups-grid');
-    if (grid) grid.innerHTML = getComponentLoader('Loading your groups...');
+    if (grid) {
+        grid.innerHTML = `<div style="grid-column: 1 / -1; width: 100%; display: flex; justify-content: center;">${getComponentLoader('Loading your groups...')}</div>`;
+    }
 
     // Fetch groups where user is a member
     // We join group_members to groups.
@@ -4592,7 +4725,7 @@ async function loadCommunityDecks(force = false) {
     }
 
     const grid = document.getElementById('community-deck-grid');
-    grid.innerHTML = getComponentLoader('Exploring the community...');
+    grid.innerHTML = `<div style="grid-column: 1 / -1; width: 100%; display: flex; justify-content: center;">${getComponentLoader('Exploring the community...')}</div>`;
 
     // Fetch public decks with profiles and card count aggregate if possible
     // Since PostgREST doesn't support complex count aggregations in one select easily, 
@@ -5751,4 +5884,4 @@ if (notesClearBtn) {
 const resetFiltersBtn = document.getElementById('reset-filters-btn');
 if (resetFiltersBtn) {
     resetFiltersBtn.addEventListener('click', resetNotesFilters);
-}
+} 

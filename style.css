@@ -1166,7 +1166,7 @@ select:focus {
     padding: 2rem;
     border-radius: var(--radius);
     border: 1px solid var(--border);
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
 }
 
 .deck-header-top {
@@ -2682,9 +2682,9 @@ body {
 
 /* Deck Settings Modal Improvements */
 #deck-settings-modal .modal {
-    max-width: 550px;
     padding: 0;
     overflow: hidden;
+    width: 100%;
 }
 
 #deck-settings-modal .modal-header {
@@ -4502,7 +4502,7 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 1.25rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     cursor: pointer;
     transition: all 0.2s ease;
     gap: 1.25rem;
