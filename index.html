@@ -50,10 +50,9 @@
             <section class="landing-page-section landing-hero-revamp">
                 <div class="section-content-wrapper">
                     <div class="landing-text-block">
-                        <span class="feature-pill">The Future of Learning</span>
-                        <h2>Master anything with <span>spaced repetition.</span></h2>
-                        <p>Flashly is the minimalist's choice for effective learning. Create, share, and master decks
-                            with a beautiful interface designed for absolute focus.</p>
+                        <h2>Exams are coming. <span>Your flashcards and notes are here.</span></h2>
+                        <p>Free flashcards and summary notes for O-Level, A-Level, and IB students in Singapore. Curated
+                            by students, for students.</p>
                         <div class="hero-btns" style="display:flex; gap:1rem;">
                             <button class="btn btn-primary btn-lg btn-signup-toggle">Start Learning for Free</button>
                             <button class="btn btn-secondary btn-lg" onclick="state.isGuest = true; showApp();">Browse
@@ -65,6 +64,51 @@
                             <img src="./Assets/deck-graphic-light.svg" alt="Flashly App Interface"
                                 style="width: 100%; height: auto; border-radius: 8px;">
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Trusted By Section -->
+            <section class="landing-trust-section">
+                <div class="section-content-wrapper">
+                    <div class="trust-container card">
+                        <span class="trust-badge">TRUSTED BY STUDENTS ACROSS SINGAPORE</span>
+                        <div class="trust-stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-icon-wrapper">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="icon-md">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                    </svg>
+                                </div>
+                                <div class="stat-value">4,882,166</div>
+                                <div class="stat-label">Notes Downloaded</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-icon-wrapper">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="icon-md">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                                    </svg>
+                                </div>
+                                <div class="stat-value">462,594</div>
+                                <div class="stat-label">Students Visited</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-icon-wrapper">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="icon-md">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                                    </svg>
+                                </div>
+                                <div class="stat-value">10,457</div>
+                                <div class="stat-label">Accounts Created</div>
+                            </div>
+                        </div>
+                        <p class="trust-footer">Join the community of students acing their exams</p>
                     </div>
                 </div>
             </section>
@@ -377,6 +421,36 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- User's Decks Section (Recommended) -->
+                        <div id="today-my-decks-section" class="today-section mt-30 hidden">
+                            <div class="section-header-compact">
+                                <h3 class="text-lg font-semibold">Ready to Learn</h3>
+                                <button class="btn btn-text btn-sm"
+                                    onclick="switchView('decks-view'); updateNav('nav-decks');">View All</button>
+                            </div>
+                            <div id="today-my-decks-grid" class="grid-container"></div>
+                        </div>
+
+                        <!-- Community Decks Section -->
+                        <div id="today-community-section" class="today-section mt-30">
+                            <div class="section-header-compact">
+                                <h3 class="text-lg font-semibold">From the Community</h3>
+                                <button class="btn btn-text btn-sm"
+                                    onclick="switchView('community-view'); updateNav('nav-community');">Explore</button>
+                            </div>
+                            <div id="today-community-grid" class="grid-container"></div>
+                        </div>
+
+                        <!-- Recommended Notes Section -->
+                        <div id="today-notes-section" class="today-section mt-30">
+                            <div class="section-header-compact">
+                                <h3 class="text-lg font-semibold">Notes that suit you</h3>
+                                <button class="btn btn-text btn-sm"
+                                    onclick="switchView('notes-view'); updateNav('nav-notes');">Marketplace</button>
+                            </div>
+                            <div id="today-notes-grid" class="grid-container"></div>
+                        </div>
                     </section>
                     <!-- Decks View -->
                     <section id="decks-view" class="view hidden">
@@ -635,7 +709,7 @@
                         <div class="flex justify-between items-center mb-6">
                             <div>
                                 <h2 class="text-2xl font-bold">Notes Marketplace</h2>
-                                <p class="text-secondary">Explore high-quality notes from the holy grail.</p>
+                                <p class="text-secondary" style="margin-bottom: 1rem;">Explore high-quality notes from the holy grail.</p>
                             </div>
                             <button id="add-note-btn" class="btn btn-primary hidden">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
@@ -647,56 +721,83 @@
                         </div>
 
                         <!-- Filters & Search -->
-                        <div class="notes-filters-bar">
-                            <div class="search-container notes-search">
-                                <input type="text" id="notes-search-input" class="search-input"
-                                    placeholder="Search notes, subjects...">
+                        <div class="notes-filters-container">
+                            <div class="notes-search-wrapper">
+                                <div class="search-input-group">
+                                    <input type="text" id="notes-search-input" class="modern-search-input"
+                                        placeholder="Search by title, subject, or keywords...">
+                                    <button id="notes-clear-btn" class="clear-search-btn hidden">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                                            class="icon-xs">
+                                            <path
+                                                d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="filters-group">
-                                <select id="filter-category" class="filter-select">
-                                    <option value="all">All Levels</option>
-                                    <option value="O Level">GCE 'O' Levels</option>
-                                    <option value="A Level">GCE 'A' Levels</option>
-                                    <option value="IB">IB</option>
-                                    <option value="N Level">GCE 'N' Levels</option>
-                                    <option value="IP">IP</option>
-                                    <option value="Sec 1-2">Sec 1-2 (Non IP)</option>
-                                </select>
-                                <select id="filter-subject" class="filter-select">
-                                    <option value="all">All Subjects</option>
-                                    <!-- Subjects populated dynamically or hardcoded -->
-                                    <option value="Additional Mathematics">Additional Mathematics</option>
-                                    <option value="Elementary Mathematics">Elementary Mathematics</option>
-                                    <option value="Pure Physics">Pure Physics</option>
-                                    <option value="Combined Physics">Combined Physics</option>
-                                    <option value="Pure Chemistry">Pure Chemistry</option>
-                                    <option value="Combined Chemistry">Combined Chemistry</option>
-                                    <option value="Pure Biology">Pure Biology</option>
-                                    <option value="Combined Biology">Combined Biology</option>
-                                    <option value="Computing">Computing</option>
-                                    <option value="English">English</option>
-                                    <option value="Pure Geography">Pure Geography</option>
-                                    <option value="Elective Geography">Elective Geography</option>
-                                    <option value="Pure History">Pure History</option>
-                                    <option value="Elective History">Elective History</option>
-                                    <option value="Social Studies">Social Studies</option>
-                                    <option value="Pure Literature">Pure Literature</option>
-                                    <option value="Elective Literature">Elective Literature</option>
-                                    <option value="Chinese">Chinese</option>
-                                    <option value="Higher Chinese">Higher Chinese</option>
-                                    <option value="Malay">Malay</option>
-                                    <option value="Design and Technology">Design and Technology</option>
-                                    <option value="Principles of Accounting">Principles of Accounting</option>
-                                </select>
-                                <select id="filter-type" class="filter-select">
-                                    <option value="all">All Types</option>
-                                    <option value="Notes/Practices">Notes/Practices</option>
-                                    <option value="Exam Papers">Exam Papers</option>
-                                    <option value="TYS Answers">TYS Answers</option>
-                                    <option value="MYEs/CAs/Other Tests">MYEs/CAs/Other Tests</option>
-                                    <option value="User Mock Papers">User Mock Papers</option>
-                                </select>
+
+                            <div class="notes-filters-row">
+                                <div class="filter-pills-group">
+                                    <div class="filter-control">
+                                        <label for="filter-category">Level</label>
+                                        <select id="filter-category" class="modern-select">
+                                            <option value="all">All Levels</option>
+                                            <option value="O Level">GCE 'O' Level</option>
+                                            <option value="A Level">GCE 'A' Level</option>
+                                            <option value="IB">IB Diploma</option>
+                                            <option value="N Level">GCE 'N' Level</option>
+                                            <option value="IP">IP Program</option>
+                                            <option value="Sec 1-2">Lower Secondary</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-control">
+                                        <label for="filter-subject">Subject</label>
+                                        <select id="filter-subject" class="modern-select">
+                                            <option value="all">All Subjects</option>
+                                            <option value="Additional Mathematics">Additional Mathematics</option>
+                                            <option value="Elementary Mathematics">Elementary Mathematics</option>
+                                            <option value="Pure Physics">Pure Physics</option>
+                                            <option value="Combined Physics">Combined Physics</option>
+                                            <option value="Pure Chemistry">Pure Chemistry</option>
+                                            <option value="Combined Chemistry">Combined Chemistry</option>
+                                            <option value="Pure Biology">Pure Biology</option>
+                                            <option value="Combined Biology">Combined Biology</option>
+                                            <option value="Computing">Computing</option>
+                                            <option value="English">English</option>
+                                            <option value="Pure Geography">Pure Geography</option>
+                                            <option value="Elective Geography">Elective Geography</option>
+                                            <option value="Pure History">Pure History</option>
+                                            <option value="Elective History">Elective History</option>
+                                            <option value="Social Studies">Social Studies</option>
+                                            <option value="Pure Literature">Pure Literature</option>
+                                            <option value="Elective Literature">Elective Literature</option>
+                                            <option value="Chinese">Chinese</option>
+                                            <option value="Higher Chinese">Higher Chinese</option>
+                                            <option value="Malay">Malay</option>
+                                            <option value="Design and Technology">Design and Technology</option>
+                                            <option value="Principles of Accounting">Principles of Accounting</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-control">
+                                        <label for="filter-type">Type</label>
+                                        <select id="filter-type" class="modern-select">
+                                            <option value="all">All Types</option>
+                                            <option value="Notes/Practices">Notes/Practices</option>
+                                            <option value="Exam Papers">Exam Papers</option>
+                                            <option value="TYS Answers">TYS Answers</option>
+                                            <option value="MYEs/CAs/Other Tests">MYEs/CAs/Other Tests</option>
+                                            <option value="User Mock Papers">User Mock Papers</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button id="reset-filters-btn" class="btn btn-text btn-sm">Reset</button>
                             </div>
+                        </div>
+
+                        <!-- Results Counter -->
+                        <div id="notes-results-info" class="notes-results-info hidden">
+                            <span id="notes-count-text">Showing 0 results</span>
+                            <div class="active-filters-tags" id="active-filters-tags"></div>
                         </div>
 
                         <!-- Notes Grid -->
@@ -707,6 +808,72 @@
                         <!-- Notes Footer (View More) -->
                         <div id="notes-footer" class="flex justify-center p-8">
                             <!-- View More button or "nothing left" message injected here -->
+                        </div>
+                    </section>
+
+                    <!-- Note Detail View -->
+                    <section id="note-detail-view" class="view hidden">
+                        <div class="note-detail-header" style="margin-bottom: 2rem;">
+                            <button id="back-to-notes-btn" class="btn btn-text flex items-center gap-2"
+                                style="padding-left: 0;">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                                    stroke="currentColor" class="icon-sm">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                                </svg>
+                                Back to Marketplace
+                            </button>
+                        </div>
+
+                        <div class="note-detail-grid">
+                            <!-- Left Side: Content & Snippet -->
+                            <div class="note-detail-main">
+                                <div class="note-detail-info mb-6" style="margin-bottom: 2rem;">
+                                    <h2 id="note-detail-title" class="text-3xl font-bold mb-2"></h2>
+                                    <div id="note-detail-tags" class="flex flex-wrap gap-2" style="margin-top: 1rem;">
+                                    </div>
+                                </div>
+
+                                <div class="note-detail-actions-row mt-6" style="margin: 2rem 0;">
+                                    <a id="note-detail-download-btn" href="#" download
+                                        class="btn btn-primary flex-1 justify-center"
+                                        style="display: flex; text-decoration: none;">
+                                        Download PDF
+                                    </a>
+                                    <button id="note-detail-share-btn" class="btn btn-secondary flex-1 justify-center"
+                                        style="display: flex;">
+                                        Share Note
+                                    </button>
+                                </div>
+
+                                <div class="note-snippet-card" id="note-snippet-trigger">
+                                    <div class="note-snippet-overlay">
+                                        <div class="glass-pill">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                                stroke-width="2" stroke="currentColor" class="icon-sm">
+                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" />
+                                            </svg>
+                                            Click to view full document
+                                        </div>
+                                    </div>
+                                    <div class="note-snippet-wrapper">
+                                        <iframe id="note-snippet-frame" loading="lazy"></iframe>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Side: Suggestions -->
+                            <div class="note-detail-sidebar">
+                                <h3 class="text-lg font-bold mb-4" style="margin-bottom: 1.5rem;">Similar Notes</h3>
+                                <div id="similar-notes-list" class="flex flex-col gap-4">
+                                    <!-- Suggestions here -->
+                                </div>
+                                <button id="view-more-similar-btn" class="btn btn-outline w-full mt-6"
+                                    style="width: 100%; margin-top: 1.5rem; justify-content: center;">
+                                    View More in Marketplace
+                                </button>
+                            </div>
                         </div>
                     </section>
 
@@ -760,8 +927,12 @@
                                         <div class="deck-title-wrapper">
                                             <h1 id="current-deck-title">Deck Title</h1>
                                             <p id="current-deck-description" class="deck-description-text"></p>
-                                            <span id="deck-public-badge" class="badge badge-public hidden"
-                                                style="width: fit-content;">Public</span>
+                                            <div id="deck-badge-container">
+                                                <span id="deck-public-badge" class="badge badge-public hidden"
+                                                    style="width: fit-content;">Public</span>
+                                                <span id="deck-subject-badge" class="badge badge-subject hidden"
+                                                    style="width: fit-content;">Subject</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="deck-utility-actions">
@@ -851,6 +1022,29 @@
                                             Custom Study
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Related Notes Suggestion -->
+                            <div id="deck-notes-suggestion" class="deck-notes-suggestion hidden"
+                                onclick="openSuggestedNotes()">
+                                <div class="suggestion-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="1.5" stroke="currentColor" class="icon-md">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                    </svg>
+                                </div>
+                                <div class="suggestion-content">
+                                    <h4 id="notes-suggestion-text">Found 0 notes related to this subject</h4>
+                                    <p class="suggestion-subtext">Click to explore curated resources</p>
+                                </div>
+                                <div class="suggestion-arrow">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2" stroke="currentColor" class="icon-sm">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                    </svg>
                                 </div>
                             </div>
 

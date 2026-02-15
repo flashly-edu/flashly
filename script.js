@@ -63,7 +63,9 @@ const state = {
     channels: {
         main: null
     },
-    sessionRatings: [] // Track ratings in current session: { cardId: string, rating: number }
+    sessionRatings: [], // Track ratings in current session: { cardId: string, rating: number }
+    currentNote: null,
+    notes: []
 };
 
 const DEFAULT_TAGS = [
@@ -106,11 +108,29 @@ function switchView(viewId) {
         if (cardList) cardList.innerHTML = '';
     }
 
+    // Clear note snippet when leaving note-detail-view
+    if (state.lastView === 'note-detail-view' && viewId !== 'note-detail-view') {
+        const snippetFrame = document.getElementById('note-snippet-frame');
+        if (snippetFrame) snippetFrame.src = '';
+    }
+
     // Show target view
     const target = document.getElementById(viewId);
     if (target) {
         target.classList.remove('hidden');
         state.lastView = viewId;
+    }
+
+    // Clear URL params if leaving detail views (preserve for deck/group/note views)
+    const detailViews = ['deck-view', 'group-detail-view', 'note-detail-view'];
+    if (!detailViews.includes(viewId)) {
+        // Use a safer way to get clean URL that works on file://
+        const cleanHref = window.location.href.split('?')[0];
+        const url = new URL(cleanHref, window.location.href.startsWith('file') ? 'file://' : undefined);
+
+        if (window.location.search.includes('deck') || window.location.search.includes('group') || window.location.search.includes('note')) {
+            window.history.replaceState({}, '', cleanHref);
+        }
     }
 
     // Smooth scroll to top when switching views
@@ -136,7 +156,7 @@ async function checkUser() {
     if (session) {
         state.user = session.user;
         state.isGuest = false;
-        showApp();
+        await showApp();
     } else {
         state.isGuest = false; // Not a guest yet, just on landing
         showAuth();
@@ -228,15 +248,19 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading-spinner"></span> Processing...';
 
-    const { error } = authMode === 'login'
-        ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signUp({ email, password });
+    let result;
+    if (authMode === 'login') {
+        result = await sb.auth.signInWithPassword({ email, password });
+    } else {
+        result = await sb.auth.signUp({ email, password });
+    }
+    const { data, error } = result;
 
     if (error) {
         showToast(error.message, 'error');
         btn.disabled = false;
         btn.textContent = originalText;
-    } else if (authMode === 'signup') {
+    } else if (authMode === 'signup' && !data?.session) {
         showToast('Check your email for verification!', 'info');
         btn.disabled = false;
         btn.textContent = originalText;
@@ -264,7 +288,7 @@ function showAuth() {
     authModal.classList.add('hidden');
 }
 
-function showApp() {
+async function showApp() {
     authView.classList.add('hidden');
     mainLayout.classList.remove('hidden');
 
@@ -291,7 +315,7 @@ function showApp() {
         loadTags(); // Pre-load tags
         loadTodayView(); // New Homepage
         fetchUserProfile(); // Fetch custom username
-        handleDeepLinks(); // Check for ?join= or ?deck= codes
+        await handleDeepLinks(); // Check for ?join= or ?deck= codes
 
         // Set active nav
         if (state.lastView === 'today-view' || !state.lastView) {
@@ -364,7 +388,26 @@ async function handleDeepLinks() {
         }
     }
 
-    // --- 2. Handle Deck Link ---
+    // --- 2. Handle Group Deep Link ---
+    const groupId = url.searchParams.get('group');
+    if (groupId) {
+        url.searchParams.delete('group');
+        dirty = true;
+
+        // Fetch group to verify access
+        const { data: group } = await sb.from('groups').select('*').eq('id', groupId).maybeSingle();
+        if (group) {
+            const { data: member } = await sb.from('group_members').select('role').eq('group_id', groupId).eq('user_id', state.user.id).maybeSingle();
+            if (member) {
+                group.myRole = member.role;
+                openGroup(group);
+            } else {
+                showToast('You are not a member of this group', 'error');
+            }
+        }
+    }
+
+    // --- 3. Handle Deck Link ---
     const deckId = url.searchParams.get('deck');
     if (deckId) {
         url.searchParams.delete('deck');
@@ -378,17 +421,49 @@ async function handleDeepLinks() {
         }
     }
 
-    if (dirty) {
+    // --- 4. Handle Note Link ---
+    const noteId = url.searchParams.get('note');
+    if (noteId) {
+        try {
+            const { data: note, error } = await sb.from('notes').select('*').eq('id', noteId).maybeSingle();
+            if (error || !note) {
+                console.warn('Deep link note fetch failed:', error);
+                // If we have a note ID but can't fetch it, we might still want to try to stay in the view 
+                // but usually it means RLS restricted it.
+            } else {
+                openNote(note);
+            }
+        } catch (err) {
+            console.error('Note deep link error:', err);
+        }
+    }
+
+    // Only replace state if we actually cleaned something up (like 'join')
+    // and we aren't in a detail view that needs to keep its params
+    if (dirty && !['deck-view', 'group-detail-view', 'note-detail-view'].includes(state.lastView)) {
         window.history.replaceState({}, document.title, url.toString());
     }
+}
+
+// Helper to reliably switch to note view from deep link
+function openNoteFromLink(noteId) {
+    if (!noteId) return;
+    sb.from('notes').select('*').eq('id', noteId).maybeSingle().then(({ data: note, error }) => {
+        if (!error && note) {
+            openNote(note);
+        } else {
+            console.warn('Failed to load deep linked note:', noteId, error);
+        }
+    });
 }
 
 async function detectLinksEarly() {
     const url = new URL(window.location.href);
     const joinCode = url.searchParams.get('join');
     const deckId = url.searchParams.get('deck');
+    const noteId = url.searchParams.get('note');
 
-    if (!joinCode && !deckId) return;
+    if (!joinCode && !deckId && !noteId) return;
 
     if (joinCode) {
         const { data: group } = await sb.from('groups').select('id, name').eq('invite_code', joinCode).maybeSingle();
@@ -396,6 +471,18 @@ async function detectLinksEarly() {
     } else if (deckId) {
         const { data: deck } = await sb.from('decks').select('id, title, description').eq('id', deckId).maybeSingle();
         if (deck) showGuestPreview('deck', deck);
+    } else if (noteId) {
+        try {
+            const { data: note } = await sb.from('notes').select('id, title').eq('id', noteId).maybeSingle();
+            if (note) {
+                showGuestPreview('note', note);
+            } else {
+                // Show generic note preview if RLS blocked the fetch
+                showGuestPreview('note', { id: noteId, title: 'Shared Note' });
+            }
+        } catch (e) {
+            showGuestPreview('note', { id: noteId, title: 'Shared Note' });
+        }
     }
 }
 
@@ -416,14 +503,21 @@ function showGuestPreview(type, data) {
             <div class="text-xs text-secondary mt-2">Sign in to see members and shared decks.</div>
         `;
         icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" /> </svg>`;
-    } else {
+    } else if (type === 'note') {
+        title.textContent = "View Shared Note";
+        subtitle.textContent = "Quickly access and download this shared academic resource.";
+        meta.innerHTML = `
+            <div class="font-bold text-lg">${escapeHtml(data.title)}</div>
+        `;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>`;
+    } else { // type === 'deck'
         title.textContent = "Access this Deck";
         subtitle.textContent = "Master this deck with our optimized spaced repetition system.";
         meta.innerHTML = `
             <div class="font-bold text-lg">${escapeHtml(data.title)}</div>
             ${data.description ? `<div class="text-xs text-secondary mt-2">${escapeHtml(data.description)}</div>` : ''}
         `;
-        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>`;
+        icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 40px; height: 40px;"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v6.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-6.75" /></svg>`;
     }
 
     modal.classList.remove('hidden');
@@ -514,7 +608,6 @@ function applyInterfaceSettings() {
     if (rmCheck) rmCheck.checked = state.settings.reducedMotion;
     if (csCheck) csCheck.checked = state.settings.compactSidebar;
 }
-
 
 // --- Navigation ---
 
@@ -1242,27 +1335,67 @@ async function loadTodayView() {
 
 
 
-    // 5. Smart Recommendations (Focus Decks)
-    await loadFocusDecks();
+    // 5. Load Today Sections
+    loadTodaySections();
 }
 
-async function loadFocusDecks() {
-    // Logic: Find decks with cards due now or soon. Sort by "Urgency" (Earliest Due).
-    // Fetch all cards due <= now
-    // We already have decks in state, let's use that if populated, else fetch.
-    // Ideally we assume loadDecksView might not have run yet if we land on Today.
-    // So let's fetch decks + card counts.
+async function loadTodaySections() {
+    // Run independently so one doesn't block the other
+    const [myDecks, commDecks] = await Promise.all([
+        loadTodayMyDecks(),
+        loadTodayCommunity()
+    ]);
 
-    // Efficient approach:
-    // 1. Fetch decks.
-    // 2. For each deck, count due cards. (Or use a view/RPC, but let's do client-side agg for now if decks < 100)
+    // 3. Recommended Notes based on subjects of the above
+    const subjects = new Set();
+    const addSubject = (d) => {
+        const name = d.subjects?.name || d.subject; // Handle joined name or potential direct column
+        if (name && typeof name === 'string') subjects.add(name);
+    };
 
-    const { data: decks } = await sb.from('decks').select('id, title, user_id, subject_id');
-    if (!decks) return;
+    if (myDecks) myDecks.forEach(addSubject);
+    if (commDecks) commDecks.forEach(addSubject);
 
+    loadTodayNotes(Array.from(subjects));
+}
+
+async function loadTodayMyDecks() {
+    const section = document.getElementById('today-my-decks-section');
+    const grid = document.getElementById('today-my-decks-grid');
+    if (!grid) return null;
+
+    grid.innerHTML = getComponentLoader('Finding your due decks...');
+
+    const { data: decks } = await sb.from('decks').select('id, title, user_id, subject_id, group_id, subjects(name)');
+    if (!decks) {
+        section.classList.add('hidden');
+        return null;
+    }
+
+    // Parallel fetch for shared access
+    const [groupMembersRes, directSharesRes] = await Promise.all([
+        sb.from('group_members').select('group_id').eq('user_id', state.user.id),
+        sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email)
+    ]);
+
+    const myGroupIds = groupMembersRes.data ? groupMembersRes.data.map(gm => gm.group_id) : [];
+    const sharedDeckIds = directSharesRes.data ? directSharesRes.data.map(ds => ds.deck_id) : [];
+
+    // Filter: Include ONLY decks owned by me for 'Ready to Learn'
+    const myAccessDecks = decks.filter(d => d.user_id === state.user.id);
+
+    if (myAccessDecks.length === 0) {
+        section.classList.add('hidden');
+        return null; // No decks to show
+    }
+
+    const now = new Date().toISOString();
+    // Fetch due cards only for relevant decks to optimize? Or just all due cards for me?
+    // Let's filter cards by deck_id using 'in' if possible, but list might be long.
+    // Simpler: Fetch all due cards (RLS handles visibility generally), then filter by myAccessDecks in JS.
     const { data: cards } = await sb.from('cards')
         .select('deck_id, due_at')
-        .lte('due_at', new Date().toISOString());
+        .lte('due_at', now);
 
     const deckStats = {};
     if (cards) {
@@ -1273,53 +1406,25 @@ async function loadFocusDecks() {
         });
     }
 
-    // Filter decks with due cards
-    const focusDecks = decks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
+    const focusDecks = myAccessDecks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
 
-    // Sort: Earliest due date first, then count desc
     focusDecks.sort((a, b) => {
         const statsA = deckStats[a.id];
         const statsB = deckStats[b.id];
-        if (new Date(statsA.earliest) - new Date(statsB.earliest) !== 0) return new Date(statsA.earliest) - new Date(statsB.earliest);
+        if (new Date(statsA.earliest) - new Date(statsB.earliest) !== 0)
+            return new Date(statsA.earliest) - new Date(statsB.earliest);
         return statsB.count - statsA.count;
     });
 
-    // Take top 3
     const top3 = focusDecks.slice(0, 3);
-
-    // Render
-    const container = document.getElementById('today-focus-grid'); // Need to ensure this exists in HTML or index.html
-    // If not exists (it likely doesn't in original), we should check or inject.
-    // Let's assume we might need to add it to HTML. 
-    // Wait, I didn't check `index.html` for `today-focus-grid`. 
-    // Use `today-view` content.
-
-    // Only proceed if we can find a place to put it. 
-    // Existing HTML has a basic layout. Let's append or replace a "Quick Start" section if it exists.
-    // Or simpler: Just log for now if element missing? No, user wants features.
-    // I will use `available-decks-list` if it exists, or create a container.
-    // Actually, looking at `index.html` (mentally), `today-view` usually has stats. 
-    // I'll try to find a suitable container or append to `today-view`.
-
-    let focusContainer = document.getElementById('today-focus-section');
-    if (!focusContainer) {
-        // Create it after options-grid
-        const view = document.getElementById('today-view');
-        focusContainer = document.createElement('div');
-        focusContainer.id = 'today-focus-section';
-        focusContainer.className = 'mt-30';
-        focusContainer.innerHTML = `<h3 class="text-lg font-semibold mb-4">Ready to Learn</h3><div id="today-focus-grid" class="grid-container"></div>`;
-        view.appendChild(focusContainer);
-    }
-
-    const grid = document.getElementById('today-focus-grid');
     grid.innerHTML = '';
 
     if (top3.length === 0) {
-        grid.innerHTML = `<p class="text-dim col-span-full">All caught up! Great job.</p>`;
-        return;
+        section.classList.add('hidden');
+        return decks; // Return all decks to use their subjects for notes even if none are due
     }
 
+    section.classList.remove('hidden');
     top3.forEach(deck => {
         const stats = deckStats[deck.id];
         const div = document.createElement('div');
@@ -1329,15 +1434,109 @@ async function loadFocusDecks() {
                 <span class="badge badge-due">${stats.count} Due</span>
             </div>
             <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
-            <p class="text-sm text-dim mb-4">Next review: Now</p>
+            <p class="text-sm text-dim mb-4">Urgent review available</p>
             <button class="btn btn-primary btn-sm w-full">Study Now</button>
         `;
         div.onclick = () => {
-            state.currentDeck = deck; // Need full deck obj? We have simplified one. 
-            // Better to fetch full deck or just navigate to deck view then study.
-            // Let's navigate to deck view to be safe.
-            state.lastView = 'today-view'; // Return here?
+            state.lastView = 'today-view';
             openDeck(deck);
+        };
+        grid.appendChild(div);
+    });
+    return decks;
+}
+
+async function loadTodayCommunity() {
+    const grid = document.getElementById('today-community-grid');
+    if (!grid) return null;
+
+    grid.innerHTML = getComponentLoader('Fetching community gems...');
+
+    // Latest 3 public decks
+    const { data: decks, error } = await sb.from('decks')
+        .select('*, profiles(username), subjects(name)')
+        .eq('is_public', true)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+    if (error || !decks || decks.length === 0) {
+        document.getElementById('today-community-section').classList.add('hidden');
+        return null;
+    }
+
+    document.getElementById('today-community-section').classList.remove('hidden');
+    grid.innerHTML = '';
+    decks.forEach(deck => {
+        const div = document.createElement('div');
+        div.className = 'dashboard-card';
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-4">
+                <span class="text-xs font-bold text-primary uppercase">${escapeHtml(deck.subjects?.name || 'General')}</span>
+            </div>
+            <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
+            <p class="text-xs text-dim mb-4">By ${escapeHtml(deck.profiles?.username || 'Flashly User')}</p>
+            <button class="btn btn-outline btn-sm w-full">View Deck</button>
+        `;
+        div.onclick = () => {
+            state.lastView = 'today-view';
+            openDeck(deck);
+        };
+        grid.appendChild(div);
+    });
+    return decks;
+}
+
+async function loadTodayNotes(subjects) {
+    const section = document.getElementById('today-notes-section');
+    const grid = document.getElementById('today-notes-grid');
+    if (!grid) return;
+
+    grid.innerHTML = getComponentLoader('Tailoring notes for you...');
+
+    let query = sb.from('notes').select('*').limit(3).order('created_at', { ascending: false });
+
+    // If we have subjects, try to match them. 
+    // This is a simple OR match on subjects.
+    if (subjects.length > 0) {
+        // Filter out empty subjects
+        const validSubjects = subjects.filter(s => s && s.trim() !== '');
+        if (validSubjects.length > 0) {
+            // Note: Supabase 'in' filter is good for this
+            query = query.in('subject', validSubjects);
+        }
+    }
+
+    const { data: notes, error } = await query;
+
+    // If matching failed or empty, just fetch latest 3
+    let finalNotes = notes;
+    if (error || !notes || notes.length === 0) {
+        const { data: latest } = await sb.from('notes').select('*').limit(3).order('created_at', { ascending: false });
+        finalNotes = latest;
+    }
+
+    if (!finalNotes || finalNotes.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    section.classList.remove('hidden');
+    grid.innerHTML = '';
+    finalNotes.forEach(note => {
+        const div = document.createElement('div');
+        div.className = 'dashboard-card';
+        div.style.minHeight = '160px';
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-4">
+                <span class="badge badge-sm" style="background: var(--primary-light); color: var(--primary)">${escapeHtml(note.subject || 'Resource')}</span>
+            </div>
+            <h4 class="font-semibold text-base mb-2 line-clamp-2">${escapeHtml(note.title)}</h4>
+            <p class="text-xs text-dim mb-4">${escapeHtml(note.category || '')}</p>
+            <button class="btn btn-sm btn-text w-full" style="justify-content: center; margin-top: auto; background: var(--primary); color: white">Open Note</button>
+        `;
+        div.onclick = () => {
+            state.lastView = 'today-view';
+            openNote(note);
         };
         grid.appendChild(div);
     });
@@ -1428,7 +1627,12 @@ async function loadDecksView(force = false) {
         return;
     }
 
-    const { data: decks, error } = await sb.from('decks').select('*').order('created_at', { ascending: false });
+    const list = document.getElementById('deck-list');
+    if (list) list.innerHTML = getComponentLoader('Syncing your decks...');
+
+    const { data: decks, error } = await sb.from('decks')
+        .select('*, subjects(name)')
+        .order('created_at', { ascending: false });
 
     if (error) return showToast(error.message, 'error');
 
@@ -1469,9 +1673,23 @@ async function loadDecksView(force = false) {
 
     state.decks = (decks || []).map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, mature: 0 } }));
 
-    // Fetch Subjects
-    const { data: subjects } = await sb.from('subjects').select('*').order('name');
+    // Fetch Subjects - Only the user's subjects
+    const { data: subjects } = await sb.from('subjects')
+        .select('*')
+        .eq('user_id', state.user.id)
+        .order('name');
     state.subjects = subjects || [];
+
+    // 4. Fetch Group Memberships & Direct Shares for "Shared with me" logic
+    // We need to know which decks are shared via groups I'm in vs just public decks
+    const { data: groupMembers } = await sb.from('group_members').select('group_id').eq('user_id', state.user.id);
+    const myGroupIds = groupMembers ? groupMembers.map(gm => gm.group_id) : [];
+
+    const { data: directShares } = await sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email);
+    const sharedDeckIds = directShares ? directShares.map(ds => ds.deck_id) : [];
+
+    state.myGroupIds = myGroupIds;
+    state.sharedDeckIds = sharedDeckIds;
 
     renderDecksViewWithSubjects();
 }
@@ -1481,7 +1699,18 @@ function renderDecksViewWithSubjects() {
     list.innerHTML = '';
 
     const filteredDecks = state.deckTab === 'shared'
-        ? state.decks.filter(d => d.user_id !== state.user.id)
+        ? state.decks.filter(d => {
+            if (d.user_id === state.user.id) return false; // Exclude my own decks
+
+            // Include if:
+            // 1. Explicitly shared via email
+            if (state.sharedDeckIds && state.sharedDeckIds.includes(d.id)) return true;
+
+            // 2. Shared via a group I am a member of
+            if (d.group_id && state.myGroupIds && state.myGroupIds.includes(d.group_id)) return true;
+
+            return false; // Exclude public decks not explicitly shared
+        })
         : state.decks.filter(d => d.user_id === state.user.id);
 
     // Default message when no decks exist in 'My Decks'
@@ -1491,7 +1720,10 @@ function renderDecksViewWithSubjects() {
                 <div style="width: 100%; text-align: center; margin: 100px 0">
                     <h3>No Decks Yet</h3>
                     <p>Create your first deck or subject to start organizing your learning.</p>
-                    <button class="btn btn-primary mt-4" onclick="document.getElementById('create-deck-btn').click()">Create Deck</button>
+                    <div style="display: flex; gap: 12px; justify-content: center; margin-top: 1.5rem;">
+                        <button class="btn btn-primary" onclick="document.getElementById('create-deck-btn').click()">Create Deck</button>
+                        <button class="btn btn-outline" onclick="updateNav('nav-community'); switchView('community-view'); loadCommunityDecks();">View Community Decks</button>
+                    </div>
                 </div>  
             </div>
         `;
@@ -1503,7 +1735,7 @@ function renderDecksViewWithSubjects() {
             <div class="empty-state">
                 <div style="width: 100%; text-align: center; margin: 100px 0">
                     <h3>No Shared Decks</h3>
-                    <p>Decks shared with you will appear here.</p>
+                    <p>Decks shared with you directly or via groups will appear here.</p>
                 </div>  
             </div>
         `;
@@ -1569,8 +1801,9 @@ function renderDecksViewWithSubjects() {
         }
     });
 
-    // 2. Render Uncategorized Decks
-    const uncategorized = filteredDecks.filter(d => !d.subject_id);
+    // 2. Render Uncategorized Decks (including decks with subjects not in our list)
+    const subjectIds = new Set(state.subjects.map(s => s.id));
+    const uncategorized = filteredDecks.filter(d => !d.subject_id || !subjectIds.has(d.subject_id));
     if (uncategorized.length > 0 || state.deckTab === 'my') {
         const uncategorizedSection = document.createElement('div');
         uncategorizedSection.className = 'subject-section';
@@ -1685,13 +1918,21 @@ window.openDeckContext = (e, deckId) => {
     const deck = state.decks.find(d => d.id === deckId);
     if (!deck) return;
 
+    const isOwner = state.user && deck.user_id === state.user.id;
+
     const options = [
         { label: 'Study', action: () => { state.currentDeck = deck; state.studySessionConfig = { type: 'standard' }; startStudySession(); } },
-        { label: 'Edit', action: () => openDeck(deck) },
-        { label: 'Rename', action: () => renameDeck(deck) },
-        { label: 'Move to Subject', action: () => moveDeckToSubject(deck) },
-        { label: 'Delete', danger: true, action: () => deleteDeckQuick(deck) }
+        { label: 'Open', action: () => openDeck(deck) }
     ];
+
+    if (isOwner) {
+        options.push({ label: 'Rename', action: () => renameDeck(deck) });
+        options.push({ label: 'Move to Subject', action: () => moveDeckToSubject(deck) });
+        options.push({ label: 'Delete', danger: true, action: () => deleteDeckQuick(deck) });
+    } else {
+        // For shared decks, users can only Open to see more options (checked async)
+    }
+
     renderContextMenu(e.clientX, e.clientY, options);
 };
 
@@ -1812,8 +2053,19 @@ window.renameDeck = (deck) => {
     document.getElementById('deck-settings-description').value = deck.description || '';
 
     // Setup Delete Button in Modal
+    // Setup Delete Button in Modal
     const deleteBtn = document.getElementById('modal-delete-deck-btn');
     if (deleteBtn) {
+        // Only owner can delete
+        const isOwner = state.user && deck.user_id === state.user.id;
+
+        // Hide/Show Danger Zone container
+        // Assuming deleteBtn is inside .danger-zone or .flex inside .danger-zone
+        // We'll target closest .danger-zone
+        const dangerZone = deleteBtn.closest('.danger-zone');
+        if (dangerZone) dangerZone.style.display = isOwner ? 'block' : 'none';
+        else deleteBtn.style.display = isOwner ? 'block' : 'none'; // Fallback
+
         deleteBtn.onclick = () => {
             if (confirm(`Are you sure you want to delete "${deck.title}"? This cannot be undone.`)) {
                 deleteDeck(deck.id);
@@ -2046,6 +2298,15 @@ document.getElementById('create-deck-form').addEventListener('submit', async (e)
 // --- Deck Details & Cards ---
 
 async function openDeck(deck) {
+    // Ensure navigation highlight
+    if (state.user && deck.user_id === state.user.id) {
+        updateNav('nav-decks');
+    } else if (deck.group_id) {
+        updateNav('nav-groups');
+    } else {
+        updateNav('nav-community');
+    }
+
     // Only update origin if coming from a main view, not internal views (like refresh or back from study)
     const validOrigins = ['decks-view', 'community-view', 'groups-view', 'group-detail-view', 'today-view'];
     if (validOrigins.includes(state.lastView)) {
@@ -2057,7 +2318,71 @@ async function openDeck(deck) {
     const descEl = document.getElementById('current-deck-description');
     if (descEl) descEl.textContent = deck.description || '';
 
+    // === PERMISSION CHECK ===
+    let canEdit = false;
+    const isOwner = state.user && deck.user_id === state.user.id;
+
+    // Check direct share permission
+    let shareRole = null;
+    if (!isOwner) {
+        const { data: share } = await sb.from('deck_shares')
+            .select('role')
+            .eq('deck_id', deck.id)
+            .eq('user_email', state.user.email)
+            .maybeSingle();
+        if (share) shareRole = share.role;
+    }
+
+    // Check group permission
+    const isGroupAdmin = deck.group_id && canEditGroupDeck(deck);
+
+    // Final permission logic
+    if (isOwner) canEdit = true;
+    else if (shareRole === 'editor') canEdit = true;
+    else if (isGroupAdmin) canEdit = true;
+
+    // Display Subject (Read-Only context)
+    let subjectName = deck.subjects?.name || deck.subject;
+    // If deck.subjects isn't populated but subject_id exists, try to find it in state.subjects
+    if (!subjectName && deck.subject_id) {
+        const foundSub = state.subjects.find(s => s.id === deck.subject_id);
+        if (foundSub) subjectName = foundSub.name;
+        // If still not found (e.g. shared from someone else's subject list), we might need to fetch it
+        // But let's rely on what we have or show 'Uncategorized' for now, or fetch if critical.
+        // Given "make sure I can see the subject its in", let's try a quick fetch if missing.
+    }
+
+    // Fetch subject name if missing and ID exists (for shared decks)
+    if (!subjectName && deck.subject_id) {
+        const { data: sub } = await sb.from('subjects').select('name').eq('id', deck.subject_id).maybeSingle();
+        if (sub) subjectName = sub.name;
+    }
+
     const publicBadge = document.getElementById('deck-public-badge');
+
+    // Use public badge area to show subject too? Or separate element?
+    // Let's create/use a subject badge next to public badge.
+    let subjectBadge = document.getElementById('deck-subject-badge');
+    if (!subjectBadge) {
+        subjectBadge = document.createElement('span');
+        subjectBadge.id = 'deck-subject-badge';
+        subjectBadge.className = 'badge badge-subject';
+        subjectBadge.style = "width: fit-content;";
+        // Insert after public badge
+        if (publicBadge && publicBadge.parentNode) {
+            publicBadge.parentNode.insertBefore(subjectBadge, publicBadge.nextSibling);
+        }
+    }
+
+    if (subjectName) {
+        subjectBadge.textContent = subjectName;
+        subjectBadge.classList.remove('hidden');
+        subjectBadge.style.backgroundColor = 'var(--primary)';
+        subjectBadge.style.color = 'white';
+        subjectBadge.style.border = '1px solid var(--primary)';
+    } else {
+        subjectBadge.classList.add('hidden');
+    }
 
     if (deck.is_public) {
         publicBadge.classList.remove('hidden');
@@ -2066,6 +2391,11 @@ async function openDeck(deck) {
     }
 
     switchView('deck-view');
+
+    // Update URL with deck ID for deep linking (must be after switchView to avoid cleanup)
+    const url = new URL(window.location);
+    url.searchParams.set('deck', deck.id);
+    window.history.pushState({ deckId: deck.id }, '', url);
 
     // Set Stats
     const stats = deck.stats || { total: 0, due: 0, new: 0, mature: 0 };
@@ -2091,7 +2421,6 @@ async function openDeck(deck) {
     if (totalEl) totalEl.textContent = stats.total || 0;
 
     // UI Robustness: Toggle visibility of editor-only features
-    const isOwner = state.user && deck.user_id === state.user.id;
 
     // Header Actions Visibility
     const utilityActions = document.querySelector('.deck-utility-actions');
@@ -2101,18 +2430,23 @@ async function openDeck(deck) {
         const shareBtn = document.getElementById('toggle-public-btn');
         const settingsBtn = document.getElementById('deck-settings-btn');
         const deleteBtn = document.getElementById('delete-deck-btn');
-        const canEdit = isOwner || (deck.group_id && canEditGroupDeck(deck));
+
+        // Share: Only Owner can manage sharing
         if (shareBtn) {
-            shareBtn.style.display = canEdit ? 'flex' : 'none';
+            shareBtn.style.display = isOwner ? 'flex' : 'none';
             shareBtn.onclick = () => openShareModal(deck);
         }
+
+        // Settings (Rename): Owner OR Editor
         if (settingsBtn) {
             settingsBtn.style.display = canEdit ? 'flex' : 'none';
             settingsBtn.onclick = () => renameDeck(deck);
         }
-        if (deleteBtn) deleteBtn.style.display = canEdit ? 'flex' : 'none';
 
-        // Import for non-owners
+        // Delete: Only Owner
+        if (deleteBtn) deleteBtn.style.display = isOwner ? 'flex' : 'none';
+
+        // Import for non-owners (Viewers or Editors who don't own it)
         const importUtilityBtn = document.getElementById('import-to-my-decks-btn');
         if (importUtilityBtn) {
             importUtilityBtn.classList.toggle('hidden', isOwner);
@@ -2121,13 +2455,13 @@ async function openDeck(deck) {
         }
     }
 
-    // 2. "Add Card" button handling
+    // 2. "Add Card" button handling - Owner or Editor
     const addCardBtn = document.getElementById('add-card-btn');
-    if (addCardBtn) addCardBtn.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'inline-flex' : 'none';
+    if (addCardBtn) addCardBtn.style.display = canEdit ? 'inline-flex' : 'none';
 
-    // 3. Import Section (CSV)
+    // 3. Import Section (CSV) - Owner or Editor
     const importSection = document.querySelector('.import-section');
-    if (importSection) importSection.style.display = (isOwner || (deck.group_id && canEditGroupDeck(deck))) ? 'flex' : 'none';
+    if (importSection) importSection.style.display = canEdit ? 'flex' : 'none';
 
     // Add/Remove Study-from-Community Import button (bottom row)
     let importBtn = document.getElementById('community-import-btn');
@@ -2149,6 +2483,130 @@ async function openDeck(deck) {
 
     updateSaveDeckButton(deck);
     loadCards(deck.id);
+
+    // Initial Search for Related Notes
+    loadRelatedNotesSuggestion(deck);
+}
+
+// Global variable to store current suggested keywords
+let currentSuggestedKeywords = '';
+
+async function loadRelatedNotesSuggestion(deck) {
+    const suggestionEl = document.getElementById('deck-notes-suggestion');
+    if (!suggestionEl) return;
+
+    suggestionEl.classList.add('hidden'); // Hide initially
+
+    // 1. Extract keywords from title
+    // Remove common stop words and short words
+    const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were'];
+    // Handle specific deck titles like "GCE 'O' Level Chemistry" -> remove 'GCE', 'O', 'Level' if we want just subject?
+    // User wants "individual keywords in the title".
+    const keywords = deck.title.toLowerCase().split(/[\s\-_]+/)
+        .map(w => w.replace(/[^a-z0-9]/g, '')) // cleanup punctuation
+        .filter(w => w.length > 2 && !stopWords.includes(w));
+
+    // Also consider subject
+    let subjectName = '';
+    // Handle joined subject object or string
+    if (deck.subjects && deck.subjects.name) {
+        subjectName = deck.subjects.name;
+    } else if (deck.subject) {
+        subjectName = deck.subject;
+    }
+
+    if (keywords.length === 0 && !subjectName) return;
+
+    // 2. Build query
+    // We want to count how many notes match ANY keyword OR the subject
+    let query = sb.from('notes').select('id', { count: 'exact', head: true });
+
+    const conditions = [];
+    if (keywords.length > 0) {
+        // Construct ILIKE conditions for each keyword on title AND subject
+        keywords.forEach(k => {
+            conditions.push(`title.ilike.%${k}%`);
+            conditions.push(`subject.ilike.%${k}%`);
+            conditions.push(`category.ilike.%${k}%`);
+        });
+    }
+
+    if (subjectName && keywords.length === 0) {
+        conditions.push(`subject.ilike.%${subjectName}%`);
+    }
+
+    if (conditions.length === 0) return; // No search terms
+
+    // Combined OR condition
+    query = query.or(conditions.join(','));
+
+    let { count, error } = await query;
+    let searchTerms = keywords.join(' ');
+
+    if (error || count === 0) {
+        // Fallback: If 0 results, try broader search just on subject if available
+        if (subjectName && keywords.length > 0) {
+            const { count: fallbackCount } = await sb.from('notes')
+                .select('id', { count: 'exact', head: true })
+                .ilike('subject', `%${subjectName}%`);
+
+            if (fallbackCount > 0) {
+                count = fallbackCount;
+                searchTerms = subjectName;
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
+    }
+
+    setupSuggestionUI(count, searchTerms);
+}
+
+function setupSuggestionUI(count, searchTerms) {
+    const suggestionEl = document.getElementById('deck-notes-suggestion');
+    const textEl = document.getElementById('notes-suggestion-text');
+    if (!suggestionEl || !textEl) return;
+
+    textEl.innerHTML = `Found <span class="text-primary">${count}</span> notes related to this subject`;
+    currentSuggestedKeywords = searchTerms;
+    suggestionEl.classList.remove('hidden');
+}
+
+function openSuggestedNotes() {
+    state.lastView = 'deck-view'; // Ensure we can go back
+
+    // Switch to notes view
+    switchView('notes-view');
+    updateNav('nav-notes');
+
+    // Pre-fill search
+    const searchInput = document.getElementById('notes-search-input');
+    if (searchInput) {
+        searchInput.value = currentSuggestedKeywords;
+
+        // Trigger search logic
+        // We might need to call initNotes() or dispatch an event
+        // The existing logic relies on filter change handlers.
+        // Let's manually trigger it.
+
+        // Assuming initNotes() handles the search input value filtering
+        // Reset filters first
+        const categoryEl = document.getElementById('filter-category');
+        if (categoryEl) categoryEl.value = 'all';
+        const subjectEl = document.getElementById('filter-subject');
+        if (subjectEl) subjectEl.value = 'all';
+        const typeEl = document.getElementById('filter-type');
+        if (typeEl) typeEl.value = 'all';
+
+        // Reset state.notes to force reload if needed or just re-filter
+        state.notes = [];
+        state.notesPage = 0;
+        state.hasMoreNotes = true;
+
+        initNotes();
+    }
 }
 
 async function importDeck(deckId) {
@@ -3189,6 +3647,9 @@ if (quitStudyBtn) {
 // --- GROUPS LOGIC ---
 
 async function loadGroups() {
+    const grid = document.getElementById('groups-grid');
+    if (grid) grid.innerHTML = getComponentLoader('Loading your groups...');
+
     // Fetch groups where user is a member
     // We join group_members to groups.
     // Assuming RLS on group_members allows seeing own membership.
@@ -3279,6 +3740,8 @@ document.getElementById('join-group-form').addEventListener('submit', async (e) 
 
 // Group Details
 async function openGroup(group) {
+    updateNav('nav-groups');
+
     // Track origin for back button
     const validOrigins = ['groups-view', 'community-view', 'today-view'];
     if (validOrigins.includes(state.lastView)) {
@@ -3286,6 +3749,7 @@ async function openGroup(group) {
     }
 
     state.currentGroup = group;
+
     document.getElementById('group-detail-title').textContent = group.name;
     document.getElementById('group-invite-code').textContent = group.invite_code;
 
@@ -3312,6 +3776,12 @@ async function openGroup(group) {
     }
 
     switchView('group-detail-view');
+
+    // Update URL with group ID (must be after switchView)
+    const url = new URL(window.location);
+    url.searchParams.set('group', group.id);
+    window.history.pushState({ groupId: group.id }, '', url);
+
     loadGroupDetails(group.id);
 }
 
@@ -4002,7 +4472,7 @@ async function loadCommunityDecks(force = false) {
     }
 
     const grid = document.getElementById('community-deck-grid');
-    grid.innerHTML = '<div class="flex justify-center py-10"><span class="loading-spinner"></span><span class="ml-2">Loading Community Decks...</span></div>';
+    grid.innerHTML = getComponentLoader('Exploring the community...');
 
     // Fetch public decks with profiles and card count aggregate if possible
     // Since PostgREST doesn't support complex count aggregations in one select easily, 
@@ -4303,6 +4773,18 @@ function escapeHtml(text) {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
+}
+
+function getComponentLoader(message = 'Loading...') {
+    return `
+        <div class="component-loader">
+            <div class="loader-container-sm">
+                <img src="./Assets/logo.png" alt="Loading" class="loader-logo-sm" style="border-radius: 50%;">
+                <div class="loader-ring-sm"></div>
+            </div>
+            <p class="loader-text-sm">${message}</p>
+        </div>
+    `;
 }
 
 function renderContent(text) {
@@ -4645,6 +5127,11 @@ async function initNotes(loadMore = false) {
     const typeEl = document.getElementById('filter-type');
     const type = typeEl ? typeEl.value : 'all';
 
+    const grid = document.getElementById('notes-grid');
+    if (!loadMore && grid) {
+        grid.innerHTML = getComponentLoader('Gathering the best notes...');
+    }
+
     const limit = 10;
     // If not loading more (i.e., new search/filter), reset list
     if (!loadMore) {
@@ -4659,8 +5146,18 @@ async function initNotes(loadMore = false) {
         .range(offset, offset + limit - 1); // Range is inclusive
 
     if (search) {
-        // Use text search on title or subject
-        query = query.or(`title.ilike.%${search}%,subject.ilike.%${search}%`);
+        // Use text search on title or subject with tokenized OR logic
+        // This matches the "Related Notes" suggestion logic
+        const terms = search.split(/\s+/).filter(t => t.length > 0);
+        if (terms.length > 0) {
+            const conditions = [];
+            terms.forEach(t => {
+                conditions.push(`title.ilike.%${t}%`);
+                conditions.push(`subject.ilike.%${t}%`);
+                conditions.push(`category.ilike.%${t}%`);
+            });
+            query = query.or(conditions.join(','));
+        }
     }
     if (category !== 'all') {
         query = query.eq('category', category);
@@ -4676,6 +5173,27 @@ async function initNotes(loadMore = false) {
 
     state.notesLoading = false;
 
+    // Update result count display
+    const countInfo = document.getElementById('notes-results-info');
+    const countText = document.getElementById('notes-count-text');
+    if (countInfo && countText) {
+        if (!error && count !== undefined) {
+            countInfo.classList.remove('hidden');
+            countText.textContent = `Showing ${count} ${count === 1 ? 'note' : 'notes'}`;
+            // Update filter tags
+            updateFilterTags(search, category, subject, type);
+        } else {
+            countInfo.classList.add('hidden');
+        }
+    }
+
+    // Toggle clear button
+    const clearBtn = document.getElementById('notes-clear-btn');
+    if (clearBtn) {
+        if (search) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+    }
+
     if (error) {
         console.error('Error fetching notes:', error);
         if (!loadMore) state.notes = [];
@@ -4689,15 +5207,51 @@ async function initNotes(loadMore = false) {
             state.notes = fetched;
         }
 
-        // Determine if there are more results based on total count
-        // If current length is less than total count, we have more
+        // Determine if there are more results
         state.hasMoreNotes = (state.notes.length < count);
     }
 
-    // We are no longer filtering client-side
     state.notesLoaded = true;
     renderNotes(state.notes);
 }
+
+function updateFilterTags(search, category, subject, type) {
+    const container = document.getElementById('active-filters-tags');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const addTag = (label, id) => {
+        const tag = document.createElement('span');
+        tag.className = 'filter-tag';
+        tag.innerHTML = `
+            ${label}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon-xs" style="cursor: pointer; opacity: 0.7;" onclick="clearFilter('${id}')">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+        `;
+        container.appendChild(tag);
+    };
+
+    if (category !== 'all') addTag(category, 'filter-category');
+    if (subject !== 'all') addTag(subject, 'filter-subject');
+    if (type !== 'all') addTag(type, 'filter-type');
+}
+
+window.clearFilter = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.value = 'all';
+        initNotes(false);
+    }
+};
+
+window.resetNotesFilters = () => {
+    document.getElementById('notes-search-input').value = '';
+    document.getElementById('filter-category').value = 'all';
+    document.getElementById('filter-subject').value = 'all';
+    document.getElementById('filter-type').value = 'all';
+    initNotes(false);
+};
 
 // Debounce helper for search input
 function debounce(func, wait) {
@@ -4793,7 +5347,7 @@ function renderNotes(notes) {
             `;
         } else if (state.notes.length > 0) {
             footer.innerHTML = `
-                <p class="text-dim text-sm italic">That's everything for now!</p>
+                <p class="text-dim text-sm italic" style="margin-top: 1rem;">That's everything for now!</p>
             `;
         } else {
             footer.innerHTML = '';
@@ -4809,27 +5363,98 @@ function resetNoteFilters() {
     handleNoteFilterChange();
 }
 
-// PDF Viewer Logic
+// Note Detail Logic
 function openNote(note) {
+    updateNav('nav-notes');
+    state.currentNote = note;
+
+    // Set UI elements
+    document.getElementById('note-detail-title').textContent = note.title;
+
+    const tagsContainer = document.getElementById('note-detail-tags');
+    if (tagsContainer) {
+        tagsContainer.innerHTML = `
+            <span class="note-tag-detail">${note.category}</span>
+            <span class="note-tag-detail">${note.subject}</span>
+            <span class="note-tag-detail">${note.type}</span>
+        `;
+    }
+
+    // Set snippet iframe
+    const snippetFrame = document.getElementById('note-snippet-frame');
+    if (snippetFrame) {
+        if (note.url.endsWith('.pdf')) {
+            snippetFrame.src = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(note.url)}`;
+        } else {
+            snippetFrame.src = note.url;
+        }
+    }
+
+    // Set download link
+    const downloadBtn = document.getElementById('note-detail-download-btn');
+    if (downloadBtn) downloadBtn.href = note.url;
+
+    // Suggest similar notes
+    if (!state.notes || state.notes.length === 0) {
+        initNotes().then(() => renderSimilarNotes(note));
+    } else {
+        renderSimilarNotes(note);
+    }
+
+    // Update URL - Ensure we clean other params but keep the note ID
+    // Use a robust way to update the URL that works on file://
+    const baseUrl = window.location.href.split('?')[0];
+    const newUrl = baseUrl + '?note=' + note.id;
+    window.history.pushState({ noteId: note.id }, '', newUrl);
+
+    switchView('note-detail-view');
+}
+
+function renderSimilarNotes(currentNote) {
+    const list = document.getElementById('similar-notes-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    // Filter notes by same subject or category, exclude current
+    if (!state.notes) state.notes = [];
+    const similar = state.notes
+        .filter(n => n.id !== currentNote.id && (n.subject === currentNote.subject || n.category === currentNote.category))
+        .slice(0, 4);
+
+    similar.forEach(note => {
+        const card = document.createElement('div');
+        card.className = 'similar-note-card';
+        card.innerHTML = `
+            <div class="similar-note-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-sm">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                </svg>
+            </div>
+            <div class="similar-note-info">
+                <div class="similar-note-title" title="${note.title}">${note.title}</div>
+                <div class="similar-note-meta">${note.subject} • ${note.category}</div>
+            </div>
+        `;
+        card.onclick = () => openNote(note);
+        list.appendChild(card);
+    });
+}
+
+function openFullNoteViewer() {
+    const note = state.currentNote;
+    if (!note) return;
+
     const modal = document.getElementById('pdf-viewer-modal');
     const title = document.getElementById('pdf-viewer-title');
     const frame = document.getElementById('pdf-frame');
-    const fallbackContainer = document.getElementById('pdf-fallback-container');
     const directLink = document.getElementById('pdf-direct-link');
 
-    // Set title and direct link
     title.textContent = note.title;
     directLink.href = note.url;
 
-    // Show fallback option
-    // fallbackContainer.classList.remove('hidden');
-
-    // Use Google Docs Viewer to bypass CORS and fix iOS rendering issues
-    // This renders the PDF as HTML/Images on Google's side
     if (note.url.endsWith('.pdf')) {
         frame.src = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(note.url)}`;
     } else {
-        // Fallback for non-PDFs (images, etc)
         frame.src = note.url;
     }
 
@@ -4837,12 +5462,100 @@ function openNote(note) {
     document.body.classList.add('modal-open');
 }
 
+// PDF Viewer Logic
 document.getElementById('close-pdf-btn').addEventListener('click', () => {
     const modal = document.getElementById('pdf-viewer-modal');
     modal.classList.add('hidden');
     document.body.classList.remove('modal-open');
     document.getElementById('pdf-frame').src = ''; // Stop loading
 });
+
+// Back Button & Trigger
+const backToNotesBtn = document.getElementById('back-to-notes-btn');
+if (backToNotesBtn) backToNotesBtn.onclick = () => switchView('notes-view');
+
+const snippetTrigger = document.getElementById('note-snippet-trigger');
+if (snippetTrigger) snippetTrigger.onclick = openFullNoteViewer;
+
+const shareNoteBtn = document.getElementById('note-detail-share-btn');
+if (shareNoteBtn) {
+    shareNoteBtn.onclick = () => {
+        if (state.currentNote) {
+            const url = new URL(window.location.href.split('?')[0]);
+            url.searchParams.set('note', state.currentNote.id);
+            navigator.clipboard.writeText(url.toString()).then(() => {
+                showToast('Share link copied to clipboard!', 'success');
+            });
+        }
+    };
+}
+
+// Forced download logic
+const downloadBtn = document.getElementById('note-detail-download-btn');
+if (downloadBtn) {
+    downloadBtn.addEventListener('click', async (e) => {
+        if (!state.currentNote) return;
+
+        // If it's a PDF, try to force download
+        if (state.currentNote.url.toLowerCase().endsWith('.pdf')) {
+            e.preventDefault();
+            const filename = (state.currentNote.title || 'Note') + '.pdf';
+
+            try {
+                const res = await fetch(state.currentNote.url);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const blobUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                    return;
+                }
+            } catch (err) {
+                console.warn("CORS/Fetch failed for download, using iframe fallback");
+            }
+
+            // Fallback: use a hidden iframe to try and trigger download without navigation
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = state.currentNote.url;
+            document.body.appendChild(iframe);
+            setTimeout(() => document.body.removeChild(iframe), 2000);
+        }
+    });
+}
+
+const similarMoreBtn = document.getElementById('view-more-similar-btn');
+if (similarMoreBtn) {
+    similarMoreBtn.onclick = () => {
+        if (state.currentNote) {
+            const subjectEl = document.getElementById('filter-subject');
+            if (subjectEl) {
+                subjectEl.value = state.currentNote.subject;
+                initNotes(false);
+                switchView('notes-view');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+    };
+}
+
+// Ensure snippet click also updates URL per requirements
+const detailSnippetTrigger = document.getElementById('note-snippet-trigger');
+if (detailSnippetTrigger) {
+    detailSnippetTrigger.addEventListener('click', () => {
+        if (state.currentNote) {
+            const url = new URL(window.location.href.split('?')[0]);
+            url.searchParams.set('note', state.currentNote.id);
+            window.history.replaceState({ noteId: state.currentNote.id }, '', url.toString());
+        }
+        openFullNoteViewer();
+    });
+}
 
 // Add Note Logic
 document.getElementById('add-note-btn').addEventListener('click', () => {
@@ -4903,3 +5616,21 @@ document.getElementById('add-note-form').addEventListener('submit', async (e) =>
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', filterNotes);
 });
+
+// Clear Button
+const notesClearBtn = document.getElementById('notes-clear-btn');
+if (notesClearBtn) {
+    notesClearBtn.addEventListener('click', () => {
+        const input = document.getElementById('notes-search-input');
+        if (input) {
+            input.value = '';
+            filterNotes();
+        }
+    });
+}
+
+// Reset Button
+const resetFiltersBtn = document.getElementById('reset-filters-btn');
+if (resetFiltersBtn) {
+    resetFiltersBtn.addEventListener('click', resetNotesFilters);
+}
