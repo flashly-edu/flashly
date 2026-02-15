@@ -6,7 +6,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f8fafc">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>Flashly</title>
+    <title>Flashly - Master Your Exams with Spaced Repetition</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description"
+        content="Flashly is the ultimate free flashcard and study notes app for Singapore O-Level, A-Level, and IB students. Master your exams with spaced repetition, community decks, and tracked progress.">
+    <meta name="keywords"
+        content="flashcards, study notes, O-Level, A-Level, IB, Singapore exams, spaced repetition, study app, free flashcards, student community, quizlet alternative, anki alternative">
+    <meta name="author" content="Flashly Team">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://flashly-edu.github.io/flashly/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://flashly-edu.github.io/flashly/">
+    <meta property="og:title" content="Flashly - Master Your Exams with Spaced Repetition">
+    <meta property="og:description"
+        content="Free flashcards and summary notes for O-Level, A-Level, and IB students in Singapore. Join the community and ace your exams today.">
+    <meta property="og:image" content="https://flashly-edu.github.io/flashly/Assets/og-image.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://flashly-edu.github.io/flashly/">
+    <meta property="twitter:title" content="Flashly - Master Your Exams">
+    <meta property="twitter:description"
+        content="Free flashcards and summary notes for O-Level, A-Level, and IB students in Singapore. Join the community and ace your exams today.">
+    <meta property="twitter:image" content="https://flashly-edu.github.io/flashly/Assets/og-image.png">
+
+    <!-- Mobile & PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Flashly">
+    <link rel="apple-touch-icon" href="./Assets/logo.png">
+
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,6 +49,30 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <link rel="icon" type="image/png" href="./Assets/logo.png">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Flashly",
+      "url": "https://flashly-edu.github.io/flashly/",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "All",
+      "description": "Free flashcards and summary notes for O-Level, A-Level, and IB students in Singapore. Uses Spaced Repetition System (SRS).",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+          "@type": "Organization",
+          "name": "Flashly Team"
+      },
+      "screenshot": "https://flashly-edu.github.io/flashly/Assets/deck-graphic-light.svg",
+      "featureList": "Spaced Repetition, Community Decks, Study Notes, Group Study, Analytics"
+    }
+    </script>
 </head>
 
 <!-- Google tag (gtag.js) -->
@@ -60,7 +115,7 @@
             <section class="landing-page-section landing-hero-revamp">
                 <div class="section-content-wrapper">
                     <div class="landing-text-block">
-                        <h2>Exams are coming. <span>Your flashcards and notes are here.</span></h2>
+                        <h1>Exams are coming. <span>Your flashcards and notes are here.</span></h1>
                         <p>Free flashcards and summary notes for O-Level, A-Level, and IB students in Singapore. Curated
                             by students, for students.</p>
                         <div class="hero-btns" style="display:flex; gap:1rem;">
@@ -1660,7 +1715,8 @@
                             </div>
                         </form>
 
-                        <div style="display: none; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(220, 38, 38, 0.2);">
+                        <div
+                            style="display: none; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(220, 38, 38, 0.2);">
                             <h3
                                 style="color: var(--danger); font-weight: 700; font-size: 1.125rem; margin-bottom: 0.5rem;">
                                 Danger Zone</h3>

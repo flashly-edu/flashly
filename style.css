@@ -272,7 +272,8 @@ body {
 
 }
 
-.landing-text-block h2 {
+.landing-text-block h2,
+.landing-text-block h1 {
     font-size: 3.5rem;
     line-height: 1.1;
     margin-bottom: 1.5rem;
@@ -282,7 +283,8 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
-.landing-text-block h2 span {
+.landing-text-block h2 span,
+.landing-text-block h1 span {
     color: var(--primary);
     font-weight: 800;
     line-height: 1.1;
