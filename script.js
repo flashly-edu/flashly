@@ -1,4 +1,10 @@
+// Redirect logic for old domain
+if (window.location.href.startsWith('https://zandenkoh.github.io/flashly/')) {
+    window.location.replace(window.location.href.replace('https://zandenkoh.github.io/flashly/', 'https://flashly-edu.github.io/flashly/'));
+}
+
 // Initialize Supabase
+// NOTE: This is the public 'anon' key. It is safe to expose in the browser as long as Row Level Security (RLS) is enabled in Supabase.
 const supabaseUrl = 'https://grgcynxsmanqfsgkiytu.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyZ2N5bnhzbWFucWZzZ2tpeXR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1NDkxMDQsImV4cCI6MjA4NjEyNTEwNH0.rlTuj58kCkZqb_nIGQhCeBkvFeY04FtFx-SLpwXp-Yg';
 const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -236,6 +242,41 @@ authModal.onclick = (e) => {
         document.body.classList.remove('modal-open');
     }
 };
+
+// Google Auth
+// Google Auth
+const googleAuthBtn = document.getElementById('google-auth-btn');
+if (googleAuthBtn) {
+    googleAuthBtn.addEventListener('click', async () => {
+        const btn = googleAuthBtn;
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> Redirecting...';
+
+        // Show the global loading overlay to match email auth experience
+        const loader = document.getElementById('loading-overlay');
+        if (loader) loader.classList.remove('hidden');
+
+        const { error } = await sb.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.href, // Redirect back to current page
+                queryParams: {
+                    access_type: 'offline',
+                    prompt: 'consent',
+                },
+            }
+        });
+
+        if (error) {
+            showToast(error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+            if (loader) loader.classList.add('hidden');
+        }
+    });
+}
 
 // Auth Form Submit
 document.getElementById('auth-form').addEventListener('submit', async (e) => {
@@ -542,10 +583,35 @@ async function fetchUserProfile() {
         }
         loadLocalSettings();
     } else if (data) {
-        if (data.username) {
-            state.user.username = data.username;
+        let username = data.username;
+
+        // Determine if username needs to be set or updated from default (email)
+        // If username is missing OR it matches the email exactly (default behavior), try to improve it
+        const isDefaultUsername = !username || (state.user.email && username === state.user.email);
+
+        if (isDefaultUsername && state.user.email) {
+            let newUsername = state.user.email.split('@')[0];
+
+            // If Google Auth, try to use display name
+            const provider = state.user.app_metadata ? state.user.app_metadata.provider : null;
+            const meta = state.user.user_metadata;
+
+            if (provider === 'google' && meta && (meta.full_name || meta.name)) {
+                newUsername = meta.full_name || meta.name;
+            }
+
+            // Only update if it's different and valid
+            if (newUsername && newUsername !== username) {
+                username = newUsername;
+                // Update profile with derived username
+                await sb.from('profiles').upsert({ id: state.user.id, username: username });
+            }
+        }
+
+        if (username) {
+            state.user.username = username;
             const userDisplay = document.getElementById('user-display');
-            if (userDisplay) userDisplay.textContent = data.username;
+            if (userDisplay) userDisplay.textContent = username;
         }
 
         // Load settings into state
@@ -705,6 +771,52 @@ document.getElementById('nav-settings').addEventListener('click', () => {
     initSettingsModal();
     openModal('settings-modal');
 });
+
+// Delete Account Handler
+const deleteAccountBtn = document.getElementById('delete-account-btn');
+if (deleteAccountBtn) {
+    deleteAccountBtn.addEventListener('click', async () => {
+        if (confirm('Are you definitely sure? This will permanently delete your account and all associated data. This action cannot be undone.')) {
+            const btn = deleteAccountBtn;
+            const originalText = btn.textContent;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span> Deleting...';
+
+            try {
+                // Attempt to delete user profile (this should cascade delete decks, cards, etc. if configured in DB)
+                // If cascade is not set up, we manually delete decks first.
+                // Since we don't have cascade on profiles -> users in the schema, we delete the profile row.
+                // Users usually have RLS to delete their own profile.
+
+                // 1. Delete Decks (Cascades to cards)
+                const { error: deckError } = await sb.from('decks').delete().eq('user_id', state.user.id);
+                if (deckError) console.warn('Deck deletion warning:', deckError);
+
+                // 2. Delete Profile
+                const { error: profileError } = await sb.from('profiles').delete().eq('id', state.user.id);
+                if (profileError) {
+                    console.error('Profile deletion error:', profileError);
+                    // If we can't delete profile, we throw, but we might have already deleted decks.
+                    // Proceed to sign out anyway as a "soft delete" from client perspective if severe error.
+                    if (profileError.code !== 'PGRST100') { // Ignore some specific errors if needed
+                        throw new Error('Could not delete account profile. Please contact support.');
+                    }
+                }
+
+                // 3. Sign Out
+                await sb.auth.signOut();
+                window.location.reload();
+
+            } catch (err) {
+                console.error(err);
+                alert('Error deleting account: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    });
+}
 
 function initSettingsModal() {
     // Populate Account Fields
