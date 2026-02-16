@@ -157,11 +157,13 @@ async function checkUser() {
     const urlParams = new URLSearchParams(window.location.search);
     const authAction = urlParams.get('auth');
     if (authAction === 'login') {
+        console.log("URL Auth Action: Login");
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
         document.body.classList.add('modal-open');
     } else if (authAction === 'signup') {
+        console.log("URL Auth Action: Signup");
         authMode = 'signup';
         updateAuthUI();
         authModal.classList.remove('hidden');
@@ -199,6 +201,7 @@ async function checkUser() {
     }
 
     sb.auth.onAuthStateChange((_event, session) => {
+        console.log("Auth state changed:", _event, session);
         state.user = session ? session.user : null;
         if (state.user) {
             showApp();
@@ -207,66 +210,109 @@ async function checkUser() {
         }
     });
 }
+console.log("Script.js: Auth logic initialized");
 
 // Auth Toggle
 let authMode = 'login';
 
 function updateAuthUI() {
-    document.getElementById('auth-submit').textContent = authMode === 'login' ? 'Sign In' : 'Sign Up';
-    document.getElementById('auth-toggle-text').textContent = authMode === 'login' ? "Don't have an account?" : "Already have an account?";
-    document.getElementById('auth-toggle-link').textContent = authMode === 'login' ? 'Sign Up' : 'Sign In';
+    console.log("updateAuthUI called. Mode:", authMode);
+    const submitBtn = document.getElementById('auth-submit');
+    const toggleText = document.getElementById('auth-toggle-text');
+    const toggleLink = document.getElementById('auth-toggle-link');
 
-    authTitle.textContent = authMode === 'login' ? 'Welcome Back' : 'Create Account';
-    authSubtitle.textContent = authMode === 'login' ? 'Log in to your Flashly account' : 'Start your learning journey today';
+    if (submitBtn) submitBtn.textContent = authMode === 'login' ? 'Sign In' : 'Sign Up';
+    if (toggleText) toggleText.textContent = authMode === 'login' ? "Don't have an account?" : "Already have an account?";
+    if (toggleLink) toggleLink.textContent = authMode === 'login' ? 'Sign Up' : 'Sign In';
+
+    if (authTitle) authTitle.textContent = authMode === 'login' ? 'Welcome Back' : 'Create Account';
+    if (authSubtitle) authSubtitle.textContent = authMode === 'login' ? 'Log in to your Flashly account' : 'Start your learning journey today';
 }
 
-document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
-    e.preventDefault();
-    authMode = authMode === 'login' ? 'signup' : 'login';
-    updateAuthUI();
-});
+const authToggleLink = document.getElementById('auth-toggle-link');
+if (authToggleLink) {
+    authToggleLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        authMode = authMode === 'login' ? 'signup' : 'login';
+        updateAuthUI();
+    });
+}
 
 // Auth Toggle Logic (Event Delegation)
 document.addEventListener('click', (e) => {
+    // console.log("Click detected on document", e.target); 
     const loginBtn = e.target.closest('.btn-login-toggle');
     const signupBtn = e.target.closest('.btn-signup-toggle');
 
     if (loginBtn) {
+        if (!authModal) {
+            console.error("Auth modal element not found!");
+            return;
+        }
+        authMode = 'login';
+        // console.log("Login button logic triggered");
+        if (!authModal) {
+            // console.error("Auth modal element not found!");
+            return;
+        }
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        authModal.style.display = 'flex'; // FORCE DISPLAY
         document.body.classList.add('modal-open');
+
+        // Logs removed
+
+
         if (document.getElementById('guest-preview-modal')) {
             document.getElementById('guest-preview-modal').classList.add('hidden');
         }
-        if (typeof modalOverlay !== 'undefined') modalOverlay.classList.add('hidden');
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
     }
 
     if (signupBtn) {
+        // console.log("Signup button logic triggered");
+        if (!authModal) {
+            // console.error("Auth modal element not found!");
+            return;
+        }
         authMode = 'signup';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        authModal.style.display = 'flex'; // FORCE DISPLAY
         document.body.classList.add('modal-open');
+
+        // Logs removed
+
+
         if (document.getElementById('guest-preview-modal')) {
             document.getElementById('guest-preview-modal').classList.add('hidden');
         }
-        if (typeof modalOverlay !== 'undefined') modalOverlay.classList.add('hidden');
+        const overlay = document.getElementById('modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
     }
 });
 
-document.querySelector('.auth-modal-close').onclick = () => {
-    authModal.classList.add('hidden');
-    document.body.classList.remove('modal-open');
-};
-
-authModal.onclick = (e) => {
-    if (e.target === authModal) {
+const authModalClose = document.querySelector('.auth-modal-close');
+if (authModalClose && authModal) {
+    authModalClose.onclick = () => {
         authModal.classList.add('hidden');
+        authModal.style.display = ''; // Reset inline style
         document.body.classList.remove('modal-open');
-    }
-};
+    };
+}
 
-// Google Auth
+if (authModal) {
+    authModal.onclick = (e) => {
+        if (e.target === authModal) {
+            authModal.classList.add('hidden');
+            authModal.style.display = ''; // Reset inline style
+            document.body.classList.remove('modal-open');
+        }
+    };
+}
+
 // Google Auth
 const googleAuthBtn = document.getElementById('google-auth-btn');
 if (googleAuthBtn) {
@@ -348,6 +394,44 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     await sb.auth.signOut();
     window.location.reload();
 });
+
+
+function closeAllModals() {
+    const modals = [
+        'guest-preview-modal',
+        'study-settings-modal',
+        'create-deck-modal',
+        'create-group-modal',
+        'create-subject-modal',
+        'settings-modal',
+        'share-modal',
+        'pdf-viewer-modal',
+        'redirect-modal'
+    ];
+
+    modals.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    if (typeof modalOverlay !== 'undefined') modalOverlay.classList.add('hidden');
+
+    // Close mobile nav
+    const mobileNav = document.getElementById('mobile-nav-modal');
+    if (mobileNav) mobileNav.classList.remove('active');
+
+    const menuToggle = document.getElementById('landing-mobile-menu-toggle');
+    if (menuToggle && menuToggle.classList.contains('active')) {
+        menuToggle.classList.remove('active');
+        // Reset icon to hamburger
+        menuToggle.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-md">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+        `;
+        document.body.style.overflow = '';
+    }
+}
 
 function showAuth() {
     authView.classList.remove('hidden');
@@ -708,6 +792,10 @@ document.getElementById('nav-today').addEventListener('click', () => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Close sidebar on mobile
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('active');
         return;
     }
     updateNav('nav-today');
@@ -720,6 +808,10 @@ document.getElementById('nav-decks').addEventListener('click', () => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Close sidebar on mobile
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('active');
         return;
     }
     updateNav('nav-decks');
@@ -753,6 +845,10 @@ document.getElementById('nav-insights').addEventListener('click', () => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Close sidebar on mobile
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('active');
         return;
     }
     updateNav('nav-insights');
@@ -771,6 +867,10 @@ document.getElementById('nav-groups').addEventListener('click', () => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Close sidebar on mobile
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('active');
         return;
     }
     updateNav('nav-groups');
@@ -792,6 +892,10 @@ document.getElementById('nav-settings').addEventListener('click', () => {
         authMode = 'login';
         updateAuthUI();
         authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        // Close sidebar on mobile
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('active');
         return;
     }
     initSettingsModal();
@@ -1502,7 +1606,7 @@ async function loadTodayMyDecks() {
     const grid = document.getElementById('today-my-decks-grid');
     if (!grid) return null;
 
-    grid.innerHTML = getComponentLoader('Finding your due decks...');
+    grid.innerHTML = getSkeletonLoadingCards(3);
 
     const { data: decks } = await sb.from('decks').select('id, title, user_id, subject_id, group_id, subjects(name)');
     if (!decks) {
@@ -1588,7 +1692,7 @@ async function loadTodayCommunity() {
     const grid = document.getElementById('today-community-grid');
     if (!grid) return null;
 
-    grid.innerHTML = getComponentLoader('Fetching community gems...');
+    grid.innerHTML = getSkeletonLoadingCards(3);
 
     // Latest 3 public decks
     const { data: decks, error } = await sb.from('decks')
@@ -1633,7 +1737,7 @@ async function loadTodayNotes(subjects) {
     const grid = document.getElementById('today-notes-grid');
     if (!grid) return;
 
-    grid.innerHTML = getComponentLoader('Tailoring notes for you...');
+    grid.innerHTML = getSkeletonLoadingCards(3);
 
     let query = sb.from('notes').select('*').limit(3).order('created_at', { ascending: false });
 
@@ -2026,6 +2130,14 @@ function renderDeckRow(deck, container) {
 
 // Subject Actions
 window.createSubject = () => {
+    if (state.isGuest) {
+        closeAllModals();
+        authMode = 'login';
+        updateAuthUI();
+        authModal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        return;
+    }
     document.getElementById('new-subject-name').value = '';
     openModal('create-subject-modal');
 };
@@ -2233,7 +2345,7 @@ document.getElementById('deck-settings-form').addEventListener('submit', async (
         closeModal();
 
         // Refresh State & UI
-        await loadDecks();
+        await loadDecksView(true);
         if (state.currentDeck && state.currentDeck.id === id) {
             state.currentDeck.title = title;
             state.currentDeck.description = description;
@@ -2657,24 +2769,6 @@ async function openDeck(deck) {
     // 3. Import Section (CSV) - Owner or Editor
     const importSection = document.querySelector('.import-section');
     if (importSection) importSection.style.display = canEdit ? 'flex' : 'none';
-
-    // Add/Remove Study-from-Community Import button (bottom row)
-    let importBtn = document.getElementById('community-import-btn');
-    const actionRow = document.querySelector('.deck-action-row');
-
-    if (!isOwner) {
-        if (!importBtn && actionRow) {
-            importBtn = document.createElement('button');
-            importBtn.id = 'community-import-btn';
-            importBtn.className = 'btn btn-secondary action-secondary';
-            importBtn.style.height = '48px';
-            importBtn.innerHTML = 'Import to My Decks';
-            importBtn.onclick = () => importDeck(deck.id);
-            actionRow.appendChild(importBtn);
-        }
-    } else {
-        if (importBtn) importBtn.remove();
-    }
 
     updateSaveDeckButton(deck);
     loadCards(deck.id);
@@ -3398,9 +3492,11 @@ async function startStudySession(restart = false) {
         if (state.currentDeck) {
             showGuestPreview('deck', state.currentDeck);
         } else {
+            closeAllModals();
             authMode = 'login';
             updateAuthUI();
             authModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
         }
         return;
     }
@@ -4139,11 +4235,14 @@ async function openGroup(group) {
 async function deleteGroup(groupId) {
     if (confirm('Are you sure you want to delete this group? All decks will be deleted.')) {
         const { error } = await sb.from('groups').delete().eq('id', groupId);
-        if (error) showToast(error.message, 'error');
-        else {
+        if (error) {
+            console.error("Delete Group Error:", error);
+            showToast(`Failed to delete: ${error.message}`, 'error');
+        } else {
             showToast('Group deleted');
+            state.groups = state.groups.filter(g => g.id !== groupId);
             switchView('groups-view');
-            loadGroups();
+            renderGroups();
         }
     }
 }
@@ -4190,7 +4289,7 @@ async function loadGroupDetails(groupId) {
     state.groupDecks = decks || [];
     renderGroupDecks();
 
-    // 2. Fetch Members - Use explicit alias to help PostgREST
+    // 2. Fetch Members
     const { data: memberProfiles, error: mErr } = await sb.from('group_members')
         .select(`
             role, 
@@ -4200,19 +4299,28 @@ async function loadGroupDetails(groupId) {
         .eq('group_id', groupId);
 
     if (mErr) console.error("Error fetching members:", mErr);
-
     state.groupMembers = memberProfiles || [];
 
-    // 3. Fetch Group Stats (Reviews per user in these decks)
+    // 3. Fetch Group Stats & Activity
     const deckIds = state.groupDecks.map(d => d.id);
     state.groupMemberStats = {};
+    state.groupActivity = [];
 
     if (deckIds.length > 0) {
         const { data: logs } = await sb.from('study_logs')
-            .select('user_id, rating')
-            .in('deck_id', deckIds);
+            .select(`
+                user_id, 
+                rating, 
+                review_time,
+                card_id,
+                deck_id,
+                decks:deck_id (title)
+            `)
+            .in('deck_id', deckIds)
+            .order('review_time', { ascending: false });
 
         if (logs) {
+            state.groupActivity = logs.slice(0, 30); // Last 30 events
             logs.forEach(log => {
                 if (!state.groupMemberStats[log.user_id]) {
                     state.groupMemberStats[log.user_id] = { reviews: 0, score: 0 };
@@ -4224,6 +4332,80 @@ async function loadGroupDetails(groupId) {
     }
 
     renderGroupMembers();
+    renderGroupLeaderboard();
+    renderGroupActivity();
+}
+
+function renderGroupLeaderboard() {
+    const list = document.getElementById('group-leaderboard-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    const membersWithStats = state.groupMembers.map(m => {
+        const stats = state.groupMemberStats[m.user_id] || { reviews: 0, score: 0 };
+        const mastery = stats.reviews > 0 ? Math.round((stats.score / (stats.reviews * 4)) * 100) : 0;
+        return { ...m, stats, mastery };
+    }).sort((a, b) => b.stats.reviews - a.stats.reviews);
+
+    if (membersWithStats.length === 0) {
+        list.innerHTML = '<div class="text-dim p-8 text-center">No activity data yet.</div>';
+        return;
+    }
+
+    membersWithStats.forEach((m, idx) => {
+        const name = (m.profiles?.username || 'Unknown').split(' ')[0];
+        const rank = idx + 1;
+        const row = document.createElement('div');
+        row.className = `leaderboard-row rank-${rank <= 3 ? rank : 'other'}`;
+        row.innerHTML = `
+            <div class="rank-col"><div class="rank-badge">${rank}</div></div>
+            <div class="member-col" style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="user-avatar-sm">${name.charAt(0).toUpperCase()}</div>
+                <span style="font-weight: 500;">${escapeHtml(name)} ${m.user_id === state.user.id ? '<span class="text-xs opacity-50">(You)</span>' : ''}</span>
+            </div>
+            <div class="stat-col" style="text-align: center;">
+                <span style="font-weight: 700;">${m.stats.reviews}</span>
+            </div>
+            <div class="stat-col" style="text-align: right;">
+                <span class="text-primary" style="font-weight: 700;">${m.mastery}%</span>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+}
+
+function renderGroupActivity() {
+    const feed = document.getElementById('group-activity-feed');
+    if (!feed) return;
+    feed.innerHTML = '';
+
+    if (state.groupActivity.length === 0) {
+        feed.innerHTML = '<div class="text-dim p-4 text-center">No recent activity detected.</div>';
+        return;
+    }
+
+    state.groupActivity.forEach(act => {
+        const member = state.groupMembers.find(m => m.user_id === act.user_id);
+        const name = member?.profiles?.username || 'Someone';
+        const time = new Date(act.review_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const date = new Date(act.review_time).toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+        const item = document.createElement('div');
+        item.className = 'activity-item';
+        item.innerHTML = `
+            <div class="activity-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-xs" style="color: var(--primary);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+            </div>
+            <div class="activity-content">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
+                    <span class="text-sm"><strong>${escapeHtml(name)}</strong> studied <strong>${escapeHtml(act.decks?.title || 'a deck')}</strong></span>
+                    <span class="text-xs text-secondary">${date} • ${time}</span>
+                </div>
+                <div class="text-xs text-secondary">Earned a rating of ${act.rating}/4</div>
+            </div>
+        `;
+        feed.appendChild(item);
+    });
 }
 
 function renderGroupDecks() {
@@ -4367,6 +4549,18 @@ function stopGame() {
 }
 
 window.startGame = (mode) => {
+    if (state.isGuest) {
+        if (state.currentDeck) {
+            showGuestPreview('deck', state.currentDeck);
+        } else {
+            closeAllModals();
+            authMode = 'login';
+            updateAuthUI();
+            authModal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+        }
+        return;
+    }
     state.game.mode = mode;
     state.game.active = true;
     state.game.score = 0;
@@ -5126,6 +5320,21 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;");
 }
 
+function getSkeletonLoadingCards(count = 3) {
+    let skeletons = '';
+    for (let i = 0; i < count; i++) {
+        skeletons += `
+            <div class="skeleton-card">
+                <div class="skeleton-shimmer"></div>
+                <div class="skeleton-text title"></div>
+                <div class="skeleton-text desc"></div>
+                <div class="skeleton-text stats"></div>
+            </div>
+        `;
+    }
+    return skeletons;
+}
+
 function getComponentLoader(message = 'Loading...') {
     return `
         <div class="component-loader">
@@ -5169,18 +5378,43 @@ function showToast(message, type = 'success') {
 // Removing duplicate definition to prevent state overwrites and logic errors
 
 function openModal(id) {
-    modalOverlay.classList.remove('hidden');
-    document.getElementById(id).classList.remove('hidden');
+    const modal = document.getElementById(id);
+    if (!modal) return;
+
+    // Check if it's a custom overlay wrapper
+    const isCustom = modal.classList.contains('custom-overlay') || modal.id === 'auth-modal';
+
+    if (id !== 'redirect-modal' && !isCustom) {
+        modalOverlay.classList.remove('hidden');
+    }
+
     document.body.classList.add('modal-open');
+
+    modal.classList.remove('hidden');
+
+    // If wrapper, also unhide inner content
+    if (modal.classList.contains('custom-overlay')) {
+        // Ensure flex display for centering if needed, though CSS handles it
+        // modal.style.display = 'flex'; 
+        const inner = modal.querySelector('.modal');
+        if (inner) inner.classList.remove('hidden');
+    }
 }
 
 function closeModal() {
     modalOverlay.classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    document.querySelectorAll('.modal, .redirect-modal').forEach(m => m.classList.add('hidden'));
+    document.querySelectorAll('.custom-overlay').forEach(m => m.classList.add('hidden'));
     document.body.classList.remove('modal-open');
+    document.body.style.position = '';
+    document.body.style.width = '';
+    document.body.style.height = '';
 }
 document.querySelectorAll('.close-modal').forEach(btn => btn.addEventListener('click', closeModal));
 modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+document.querySelectorAll('.custom-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+});
 
 // --- Sharing Logic ---
 
@@ -5342,51 +5576,172 @@ if (copyLinkBtn) {
 }
 
 
-// --- Bulk Add Logic ---
-document.getElementById('bulk-add-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!state.currentDeck) return;
+// --- Pattern-based Import Logic ---
 
-    const input = document.getElementById('bulk-add-input').value;
-    const separatorType = document.querySelector('input[name="separator"]:checked').value;
-    let separator = separatorType;
-    if (separatorType === '\t') separator = '\t';
-    if (separatorType === 'custom') separator = document.getElementById('custom-separator').value || '|';
+function initImportManager() {
+    const bulkInput = document.getElementById('bulk-add-input');
+    const patternInput = document.getElementById('import-structure-pattern');
+    const bulkCountDisp = document.getElementById('bulk-add-card-count');
+    const previewDisp = document.getElementById('import-preview-content');
+    const autoDetectBtn = document.getElementById('import-auto-detect-btn');
+    const fileInput = document.getElementById('csv-upload');
 
-    const lines = input.split('\n').filter(line => line.trim() !== '');
-    const newCards = [];
+    if (!bulkInput) return;
 
-    for (const line of lines) {
-        const parts = line.split(separator);
-        if (parts.length >= 2) {
-            newCards.push({
-                deck_id: state.currentDeck.id,
-                front: parts[0].trim(),
-                back: parts.slice(1).join(separator).trim()
-            });
+    if (patternInput && !patternInput.value) patternInput.value = '[front] | [back]';
+
+    const getParserInfo = () => {
+        const pattern = patternInput.value || '[front] | [back]';
+        const frontIdx = pattern.indexOf('[front]');
+        const backIdx = pattern.indexOf('[back]');
+        if (frontIdx === -1 || backIdx === -1) return null;
+
+        let separator = '';
+        let isSwapped = false;
+
+        if (frontIdx < backIdx) {
+            separator = pattern.substring(frontIdx + 7, backIdx);
+        } else {
+            separator = pattern.substring(backIdx + 6, frontIdx);
+            isSwapped = true;
         }
-    }
 
-    if (newCards.length === 0) {
-        return showToast('No valid cards found. Make sure you use the correct separator.', 'error');
-    }
+        return { separator: separator || '|', isSwapped };
+    };
 
-    const submitBtn = document.getElementById('bulk-add-submit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Adding...';
+    window.updateImportPreview = () => {
+        const val = bulkInput.value.trim();
+        const lines = val.split('\n').filter(l => l.trim() !== '');
+        const info = getParserInfo();
 
-    const { error } = await sb.from('cards').insert(newCards);
+        if (!info) {
+            if (previewDisp) previewDisp.innerHTML = `<span class="text-danger" style="font-size: 0.8rem;">Pattern must include both [front] and [back]</span>`;
+            if (bulkCountDisp) bulkCountDisp.textContent = '0';
+            return;
+        }
 
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Add All Cards';
+        const { separator, isSwapped } = info;
+        const validCards = lines.map(line => {
+            const parts = line.split(separator);
+            if (parts.length < 2) return null;
+            let front = isSwapped ? parts.slice(1).join(separator).trim() : parts[0].trim();
+            let back = isSwapped ? parts[0].trim() : parts.slice(1).join(separator).trim();
+            return { front, back };
+        }).filter(c => c !== null);
 
-    if (error) return showToast(error.message, 'error');
+        if (bulkCountDisp) bulkCountDisp.textContent = validCards.length;
 
-    showToast(`Successfully added ${newCards.length} cards!`);
-    document.getElementById('bulk-add-input').value = '';
-    closeModal();
-    openDeck(state.currentDeck); // Refresh card list
-});
+        if (previewDisp) {
+            if (validCards.length > 0) {
+                const card = validCards[0];
+                previewDisp.innerHTML = `
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <span style="background: var(--surface-hover); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.75rem;"><strong style="color: var(--primary);">[FRONT]</strong> ${escapeHtml(card.front)}</span>
+                        <span style="color: var(--text-dim);">${escapeHtml(separator)}</span>
+                        <span style="background: var(--surface-hover); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); font-size: 0.75rem;"><strong style="color: var(--primary);">[BACK]</strong> ${escapeHtml(card.back)}</span>
+                    </div>
+                `;
+            } else {
+                previewDisp.innerHTML = `<span class="text-dim italic" style="font-size: 0.8rem;">No cards matched pattern. Try "Auto-Detect".</span>`;
+            }
+        }
+    };
+
+    const autoDetectSeparator = () => {
+        const text = bulkInput.value.trim();
+        if (!text) return;
+        const commonSeparators = ['|', ',', '\t', ';', ':', '-', '::'];
+        const lines = text.split('\n').filter(l => l.trim() !== '').slice(0, 10);
+        let bestSep = '|', maxConsistency = -1;
+
+        commonSeparators.forEach(sep => {
+            let counts = lines.map(line => line.split(sep).length - 1);
+            let validLines = counts.filter(c => c > 0).length;
+            if (validLines > 0) {
+                let avg = counts.reduce((a, b) => a + b, 0) / validLines;
+                let variance = counts.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / validLines;
+                let score = validLines / (1 + variance);
+                if (score > maxConsistency) { maxConsistency = score; bestSep = sep; }
+            }
+        });
+
+        patternInput.value = `[front] ${bestSep} [back]`;
+        updateImportPreview();
+    };
+
+    bulkInput.oninput = updateImportPreview;
+    patternInput.oninput = updateImportPreview;
+    autoDetectBtn.onclick = autoDetectSeparator;
+
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            bulkInput.value = event.target.result;
+            autoDetectSeparator();
+            showToast(`Loaded ${file.name}`, 'success');
+        };
+        reader.readAsText(file);
+    };
+
+    document.getElementById('bulk-add-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!state.currentDeck) return showToast('Please open a deck first.', 'error');
+
+        const input = bulkInput.value.trim();
+        if (!input) return showToast('Please enter some cards.', 'error');
+
+        const info = getParserInfo();
+        if (!info) return showToast('Invalid pattern.', 'error');
+
+        const { separator, isSwapped } = info;
+        const lines = input.split('\n').filter(line => line.trim() !== '');
+        const newCards = [];
+
+        for (const line of lines) {
+            const parts = line.split(separator);
+            if (parts.length >= 2) {
+                let front = isSwapped ? parts.slice(1).join(separator).trim() : parts[0].trim();
+                let back = isSwapped ? parts[0].trim() : parts.slice(1).join(separator).trim();
+
+                newCards.push({
+                    deck_id: state.currentDeck.id,
+                    front,
+                    back,
+                    user_id: state.user.id
+                });
+            }
+        }
+
+        if (newCards.length === 0) return showToast('No valid cards found with current settings.', 'error');
+
+        const submitBtn = document.getElementById('bulk-add-submit');
+        const originalBtnText = submitBtn.textContent;
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.textContent = `Importing ${newCards.length} cards...`;
+            const { error } = await sb.from('cards').insert(newCards);
+            if (error) throw error;
+
+            showToast(`Successfully imported ${newCards.length} cards!`, 'success');
+            bulkInput.value = '';
+            closeModal();
+            loadCards(state.currentDeck.id);
+        } catch (error) {
+            console.error('Import Error:', error);
+            showToast('Failed: ' + error.message, 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+        }
+    });
+
+}
+
+initImportManager();
+
 
 // Final Init
 
@@ -5421,25 +5776,26 @@ checkUser();
         bulkAddBtn.addEventListener('click', () => {
             if (dropdownMenu) dropdownMenu.classList.add('hidden');
 
-            // Pre-fill separator
-            const separator = state.settings.defaultSeparator || '|';
-            const radios = document.getElementsByName('separator');
-            let found = false;
-            radios.forEach(r => {
-                if (r.value === separator) {
-                    r.checked = true;
-                    found = true;
-                }
-            });
-            if (!found) {
-                const customRadio = document.querySelector('input[name="separator"][value="custom"]');
-                if (customRadio) {
-                    customRadio.checked = true;
-                    document.getElementById('custom-separator').value = separator;
-                }
-            }
+            // Pre-fill separator - REMOVED: Replaced by pattern-based logic
+            // const separator = state.settings.defaultSeparator || '|';
+            // const radios = document.getElementsByName('separator');
+            // let found = false;
+            // radios.forEach(r => {
+            //     if (r.value === separator) {
+            //         r.checked = true;
+            //         found = true;
+            //     }
+            // });
+            // if (!found) {
+            //     const customRadio = document.querySelector('input[name="separator"][value="custom"]');
+            //     if (customRadio) {
+            //         customRadio.checked = true;
+            //         document.getElementById('custom-separator').value = separator;
+            //     }
+            // }
 
             openModal('bulk-add-modal');
+            if (typeof window.updateImportPreview === 'function') window.updateImportPreview();
         });
     }
 
@@ -5447,8 +5803,8 @@ checkUser();
     if (importCsvBtn) {
         importCsvBtn.addEventListener('click', () => {
             if (dropdownMenu) dropdownMenu.classList.add('hidden');
-            const csvInput = document.getElementById('csv-upload');
-            if (csvInput) csvInput.click();
+            openModal('bulk-add-modal');
+            if (typeof window.updateImportPreview === 'function') window.updateImportPreview();
         });
     }
 
@@ -5680,6 +6036,11 @@ function renderNotes(notes) {
 
         const displayCat = CATEGORY_DISPLAY[note.category] || note.category || 'General';
         const displaySub = note.subject === 'General' ? '' : note.subject;
+        const m = document.getElementById('ai-modal');
+        if (m && !m.classList.contains('hidden')) {
+            // Initialize PDF drag and drop
+            initAIPdfUpload();
+        }
 
         const card = document.createElement('div');
         card.className = 'note-card';
@@ -5747,13 +6108,17 @@ function openNote(note) {
         `;
     }
 
-    // Set snippet iframe
-    const snippetFrame = document.getElementById('note-snippet-frame');
-    if (snippetFrame) {
+    // Set snippet
+    const snippetContainer = document.getElementById('note-snippet-container');
+    const snippetContent = document.getElementById('note-snippet-content');
+    const snippetLoader = document.getElementById('note-snippet-loader');
+
+    if (snippetContainer && snippetContent) {
+        snippetContent.innerHTML = '';
         if (note.url.endsWith('.pdf')) {
-            snippetFrame.src = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(note.url)}`;
+            renderPDFSnippet(note.url);
         } else {
-            snippetFrame.src = note.url;
+            snippetContent.innerHTML = `<img src="${note.url}" style="width:100%; height:auto;" alt="Snippet">`;
         }
     }
 
@@ -5775,6 +6140,36 @@ function openNote(note) {
     window.history.pushState({ noteId: note.id }, '', newUrl);
 
     switchView('note-detail-view');
+}
+
+async function renderPDFSnippet(url) {
+    const content = document.getElementById('note-snippet-content');
+    const loader = document.getElementById('note-snippet-loader');
+
+    if (!content) return;
+
+    if (loader) loader.classList.remove('hidden');
+    content.innerHTML = '';
+
+    // URL Parameters: 
+    // page=1 (Stay on first page)
+    // view=Fit (Fit the entire page in the frame height/width)
+    const previewUrl = url.includes('#') ? url : url + '#page=1&view=Fit&toolbar=0&navpanes=0&scrollbar=0';
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'note-snippet-frame';
+    iframe.src = previewUrl;
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+    iframe.style.background = 'white';
+    iframe.style.display = 'block';
+
+    iframe.onload = () => {
+        if (loader) loader.classList.add('hidden');
+    };
+
+    content.appendChild(iframe);
 }
 
 function renderSimilarNotes(currentNote) {
@@ -5807,35 +6202,79 @@ function renderSimilarNotes(currentNote) {
     });
 }
 
+
+
+async function renderPDF(url) {
+    const container = document.getElementById('pdf-canvas-container');
+    const loader = document.getElementById('pdf-loader');
+    const pageIndicator = document.getElementById('pdf-page-indicator');
+
+    if (!container) return;
+
+    // Reset state
+    container.innerHTML = '';
+    if (loader) loader.classList.remove('hidden');
+    if (pageIndicator) pageIndicator.classList.add('hidden');
+
+    // PDF viewer URL: Use FitV (Fit Vertical/Height) as requested
+    const viewerUrl = url.includes('#') ? url : url + '#view=FitV&navpanes=0';
+
+    const iframe = document.createElement('iframe');
+    iframe.src = viewerUrl;
+    iframe.style.width = '100%';
+    iframe.style.height = '100%'; // Fill scroll container or body
+    iframe.style.minHeight = '85vh';
+    iframe.style.border = 'none';
+    iframe.style.background = 'white';
+    iframe.style.boxShadow = '0 20px 50px rgba(0,0,0,0.5)';
+
+    iframe.onload = () => {
+        if (loader) loader.classList.add('hidden');
+    };
+
+    container.appendChild(iframe);
+}
+
+// Remove unused renderPDFPage function
+
 function openFullNoteViewer() {
     const note = state.currentNote;
     if (!note) return;
 
     const modal = document.getElementById('pdf-viewer-modal');
     const title = document.getElementById('pdf-viewer-title');
-    const frame = document.getElementById('pdf-frame');
-    const directLink = document.getElementById('pdf-direct-link');
+    const downloadLink = document.getElementById('pdf-download-link');
 
     title.textContent = note.title;
-    directLink.href = note.url;
-
-    if (note.url.endsWith('.pdf')) {
-        frame.src = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(note.url)}`;
-    } else {
-        frame.src = note.url;
+    if (downloadLink) {
+        downloadLink.href = note.url;
+        downloadLink.classList.remove('hidden');
     }
 
     modal.classList.remove('hidden');
     document.body.classList.add('modal-open');
+
+    if (note.url.endsWith('.pdf')) {
+        pdfScale = 1.0; // Reset scale
+        renderPDF(note.url);
+    } else {
+        // Fallback or Image?
+        const container = document.getElementById('pdf-canvas-container');
+        container.innerHTML = `<div class="p-10 text-white text-center">
+            <p class="mb-4">This browser viewer only supports PDFs.</p>
+            <a href="${note.url}" target="_blank" class="btn btn-primary">Open in New Tab</a>
+        </div>`;
+    }
 }
 
-// PDF Viewer Logic
-document.getElementById('close-pdf-btn').addEventListener('click', () => {
-    const modal = document.getElementById('pdf-viewer-modal');
-    modal.classList.add('hidden');
+// PDF Viewer Events
+document.getElementById('close-pdf-btn')?.addEventListener('click', () => {
+    document.getElementById('pdf-viewer-modal').classList.add('hidden');
     document.body.classList.remove('modal-open');
-    document.getElementById('pdf-frame').src = ''; // Stop loading
+    document.getElementById('pdf-canvas-container').innerHTML = '';
 });
+
+// Zoom logic is disabled for native iframe viewer
 
 // Back Button & Trigger
 const backToNotesBtn = document.getElementById('back-to-notes-btn');
@@ -5998,4 +6437,433 @@ if (notesClearBtn) {
 const resetFiltersBtn = document.getElementById('reset-filters-btn');
 if (resetFiltersBtn) {
     resetFiltersBtn.addEventListener('click', resetNotesFilters);
-} 
+}
+// Redirect Modal Logic
+if (window.location.hostname === 'zandenkoh.github.io' || window.location.href.includes('termina_penguin')) {
+    const REDIRECT_DISMISSED_KEY = 'flashly_redirect_dismissed_count';
+    const RELOAD_THRESHOLD = 10;
+
+    let reloadCount = parseInt(localStorage.getItem(REDIRECT_DISMISSED_KEY) || '0');
+
+    if (reloadCount === 0) {
+        setTimeout(() => openModal('redirect-modal'), 2000);
+    } else {
+        reloadCount++;
+        if (reloadCount >= RELOAD_THRESHOLD) {
+            reloadCount = 0; // Reset to show again
+        }
+        localStorage.setItem(REDIRECT_DISMISSED_KEY, reloadCount.toString());
+    }
+
+    // Function to handle dismissal
+    window.dismissRedirectModal = () => {
+        document.getElementById('redirect-modal').classList.add('hidden');
+        localStorage.setItem(REDIRECT_DISMISSED_KEY, '1'); // Start counting reloads
+    };
+}
+
+// --- AI Generation Logic ---
+
+// PDF Handling
+let aiPdfText = "";
+
+function initAIPdfUpload() {
+    const dropzone = document.getElementById('ai-pdf-dropzone');
+    const input = document.getElementById('ai-pdf-upload');
+    const success = document.getElementById('ai-file-success');
+    const filename = document.getElementById('ai-filename-display');
+    const removeBtn = document.getElementById('ai-remove-file');
+    const textArea = document.getElementById('ai-input-text');
+
+    if (!dropzone || !input) return;
+
+    // Reset state
+    aiPdfText = "";
+    input.value = "";
+    success.classList.add('hidden');
+    textArea.disabled = false;
+    textArea.placeholder = "Paste your study notes, an article, or topic here...";
+
+    const handleFile = async (file) => {
+        if (file.type !== 'application/pdf') {
+            showToast('Only PDF files are supported', 'error');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            showToast('File size limit is 5MB', 'info');
+            return;
+        }
+
+        // Add loading state
+        dropzone.classList.add('opacity-50', 'pointer-events-none');
+        textArea.value = "Extracting text from PDF...";
+        textArea.disabled = true;
+
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+            // Limit to first 10 pages to save tokens/memory
+            const maxPages = Math.min(pdf.numPages, 10);
+            let fullText = "";
+
+            for (let i = 1; i <= maxPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + "\n\n";
+            }
+
+            aiPdfText = fullText;
+
+            // Show success UI
+            filename.textContent = file.name;
+            success.classList.remove('hidden');
+
+            // Fill textarea but keep it disabled (visual feedback)
+            textArea.value = `[PDF Uploaded: ${file.name}]\n\n${fullText.substring(0, 500)}...\n\n(Full text extracted for AI)`;
+
+        } catch (err) {
+            console.error("PDF Read Error:", err);
+            showToast("Failed to read PDF. Is it password protected?", "error");
+            textArea.value = "";
+            textArea.disabled = false;
+        } finally {
+            dropzone.classList.remove('opacity-50', 'pointer-events-none');
+        }
+    };
+
+    input.addEventListener('change', (e) => {
+        if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        input.value = "";
+        aiPdfText = "";
+        success.classList.add('hidden');
+        textArea.value = "";
+        textArea.disabled = false;
+        textArea.placeholder = "Paste your study notes, an article, or topic here...";
+    });
+}
+
+
+// Modal Listeners
+document.getElementById('ai-generate-btn')?.addEventListener('click', () => {
+    if (state.isGuest) {
+        openModal('auth-modal');
+        return;
+    }
+    openAIModal();
+    initAIPdfUpload();
+});
+
+document.getElementById('close-ai-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('ai-modal').classList.add('hidden');
+    document.getElementById('modal-overlay').classList.add('hidden');
+});
+
+function openAIModal() {
+    document.getElementById('ai-modal-input-view').classList.remove('hidden');
+    document.getElementById('ai-modal-loading-view').classList.add('hidden');
+    document.getElementById('ai-modal').classList.remove('hidden');
+    document.getElementById('modal-overlay').classList.remove('hidden');
+
+    // Check limits UI
+    checkAIUsageLimits();
+
+    // Setup character counter
+    const textarea = document.getElementById('ai-input-text');
+    const charCount = document.getElementById('text-char-count');
+
+    if (textarea && charCount) {
+        const updateCount = () => {
+            const count = textarea.value.length;
+            charCount.textContent = `${count} chars`;
+            charCount.style.color = count >= 50 ? 'var(--success)' : 'var(--text-tertiary)';
+        };
+
+        textarea.addEventListener('input', updateCount);
+        updateCount(); // Initial count
+    }
+}
+
+async function checkAIUsageLimits() {
+    if (!state.user) return;
+
+    const { data: profile } = await sb.from('profiles').select('last_ai_deck_at, daily_ai_summaries, last_summary_at').eq('id', state.user.id).maybeSingle();
+
+    if (profile) {
+        // Deck Limit: 1 per week
+        if (profile.last_ai_deck_at) {
+            const lastDeck = new Date(profile.last_ai_deck_at);
+            const now = new Date();
+            const diffDays = (now - lastDeck) / (1000 * 60 * 60 * 24);
+
+            const limitText = document.getElementById('ai-deck-limit-text');
+            if (diffDays < 7) {
+                const daysLeft = Math.ceil(7 - diffDays);
+                if (limitText) limitText.textContent = `Limit reached. New AI deck available in ${daysLeft} days.`;
+                document.getElementById('ai-generate-submit').disabled = true;
+                document.getElementById('ai-generate-submit').style.opacity = '0.5';
+            } else {
+                if (limitText) limitText.textContent = `Free: 1 AI deck per week (Available now!)`;
+                document.getElementById('ai-generate-submit').disabled = false;
+                document.getElementById('ai-generate-submit').style.opacity = '1';
+            }
+        }
+    }
+}
+
+document.getElementById('ai-generate-submit')?.addEventListener('click', async () => {
+    // Use extracted PDF text OR typed text
+    let text = aiPdfText || document.getElementById('ai-input-text').value.trim();
+
+    // Clean up if it's the preview message
+    if (text.startsWith('[PDF Uploaded:')) {
+        text = aiPdfText;
+    }
+
+    if (!text || text.length < 50) {
+        showToast('Please provide more content (at least 50 chars)', 'info');
+        return;
+    }
+
+    const count = document.getElementById('ai-card-count').value;
+    const difficulty = document.getElementById('ai-difficulty').value;
+
+    // Switch to loading view
+    document.getElementById('ai-modal-input-view').classList.add('hidden');
+    document.getElementById('ai-modal-loading-view').classList.remove('hidden');
+
+    updateAIStatus("Analyzing content...", 20);
+
+    try {
+        // Explicitly pass apikey header to avoid 400 errors on some platforms
+        const { data, error } = await sb.functions.invoke('ai-generator', {
+            body: {
+                action: 'generate_deck',
+                content: text,
+                cardCount: count,
+                difficulty: difficulty
+            },
+            headers: {
+                'apikey': supabaseKey
+            }
+        });
+
+        if (error) throw error;
+
+        updateAIStatus("Crafting cards...", 60);
+
+        if (data.cards && data.cards.length > 0) {
+            // Create the deck
+            const { data: deck, error: deckErr } = await sb.from('decks').insert([{
+                title: data.suggested_title || 'AI Generated Deck',
+                description: `Generated from AI. ${text.substring(0, 50)}...`,
+                user_id: state.user.id,
+                is_public: false
+            }]).select().single();
+
+            if (deckErr) throw deckErr;
+
+            updateAIStatus("Saving to database...", 90);
+
+            // Insert cards
+            const cardsToInsert = data.cards.map(c => ({
+                deck_id: deck.id,
+                front: c.front,
+                back: c.back,
+                due_at: new Date()
+            }));
+
+            const { error: cardErr } = await sb.from('cards').insert(cardsToInsert);
+            if (cardErr) throw cardErr;
+
+            // Success!
+            showToast(`Generated ${data.cards.length} cards successfully!`, 'success');
+            document.getElementById('ai-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+
+            // Navigate to the new deck
+            loadDecksView();
+            openDeck(deck);
+        } else {
+            throw new Error("No cards were generated. Try longer content.");
+        }
+
+    } catch (err) {
+        console.error("AI Gen Error:", err);
+        showToast(err.message || "AI Generation failed. Check console.", "error");
+        document.getElementById('ai-modal-input-view').classList.remove('hidden');
+        document.getElementById('ai-modal-loading-view').classList.add('hidden');
+    }
+});
+
+function updateAIStatus(text, progress) {
+    const status = document.querySelector('.ai-loading-status');
+    const bar = document.getElementById('ai-progress-bar');
+    if (status) status.textContent = text;
+    if (bar) bar.style.width = `${progress}%`;
+}
+
+// Summary Logic
+document.getElementById('note-detail-ai-summary-btn')?.addEventListener('click', async () => {
+    if (state.isGuest) {
+        openModal('auth-modal');
+        return;
+    }
+
+    if (!state.currentNote) return;
+
+    const btn = document.getElementById('note-detail-ai-summary-btn');
+    const originalContent = btn.innerHTML;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span> Summarizing...';
+
+    try {
+        const { data, error } = await sb.functions.invoke('ai-generator', {
+            body: {
+                action: 'summarize',
+                note_id: state.currentNote.id,
+                note_url: state.currentNote.url,
+                note_title: state.currentNote.title
+            },
+            headers: {
+                'apikey': supabaseKey
+            }
+        });
+
+        if (error) throw error;
+
+        // Handle the new structured format: { title, key_points }
+        let summaryTitle = state.currentNote.title;
+        let keyPoints = [];
+
+        if (data.title && data.key_points && Array.isArray(data.key_points)) {
+            // New structured format
+            summaryTitle = data.title;
+            keyPoints = data.key_points;
+        } else if (data.summary) {
+            // Legacy format - parse as before
+            const rawSummary = data.summary;
+            if (typeof rawSummary === 'string') {
+                keyPoints = rawSummary.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0)
+                    .map(line => line.replace(/^[•\-\*]\s*/, ''));
+            } else if (Array.isArray(rawSummary)) {
+                keyPoints = rawSummary.map(item => {
+                    if (typeof item === 'string') return item.replace(/^[•\-\*]\s*/, '');
+                    return Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(' ');
+                });
+            }
+        } else {
+            throw new Error("Invalid summary format received");
+        }
+
+        // Ensure we have at least some content
+        if (keyPoints.length === 0) {
+            throw new Error("No summary content generated");
+        }
+
+        const listHtml = keyPoints.map((point, index) => {
+            // Process bold text (**text**)
+            const processedLine = point.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold" style="color: var(--primary);">$1</strong>');
+
+            return `
+            <li style="display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: flex-start;">
+                <span style="line-height: 1.6; color: var(--text-primary);">${processedLine}</span>
+            </li>
+        `}).join('');
+
+        const summaryHtml = `
+            <div class="ai-summary-result" style="
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 16px;
+                padding: 1rem;
+                margin-top: 2rem;
+                position: relative;
+                overflow: hidden;
+                animation: fadeIn 0.4s ease-in-out;
+            ">
+                <div style="position: absolute; top: 0; right: 0; padding: 1.5rem; opacity: 0.03; pointer-events: none;">
+                    <svg style="width: 5rem; height: 5rem;" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2L14.4 9.6H22L15.8 14.2L18.2 21.8L12 17.2L5.8 21.8L8.2 14.2L2 9.6H9.6L12 2Z"/>
+                    </svg>
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                    <h4 style="
+                        font-weight: 700;
+                        font-size: 1.1rem;
+                        display: flex;
+                        align-items: center;
+                        gap: 0.5rem;
+                        margin: 0;
+                        color: #000;
+                    ">
+                        Flashly AI Insight
+                    </h4>
+                    <span style="
+                        font-size: 0.65rem;
+                        text-transform: uppercase;
+                        letter-spacing: 0.1em;
+                        font-weight: 700;
+                        padding: 0.35rem 0.75rem;
+                        border-radius: 6px;
+                        background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.05));
+                        color: #000;
+                        border: 1px solid rgba(168, 85, 247, 0.2);
+                    ">AI Generated</span>
+                </div>
+                
+                <ul style="
+                    list-style: none;
+                    padding: 0;
+                    margin: 0;
+                    font-size: 0.95rem;
+                    line-height: 1.7;
+                ">
+                    ${listHtml}
+                </ul>
+                
+                <div style="
+                    margin-top: 1.5rem;
+                    padding-top: 1rem;
+                    border-top: 1px solid var(--border);
+                    display: flex;
+                    justify-content: flex-end;
+                ">
+                    <p style="
+                        font-size: 0.7rem;
+                        color: var(--text-tertiary);
+                        margin: 0;
+                        opacity: 0.7;
+                    ">Generated by Flashly AI • Optimized for Academic Retention</p>
+                </div>
+            </div>
+        `;
+
+        // Remove existing summary if any
+        const existing = document.querySelector('.ai-summary-result');
+        if (existing) existing.remove();
+
+        document.getElementById('note-detail-tags').insertAdjacentHTML('afterend', summaryHtml);
+        showToast('AI Summary generated!', 'success');
+
+    } catch (err) {
+        console.error("AI Summary Error:", err);
+        showToast(err.message || "Summary failed.", "error");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+    }
+});
+
+// --- End of Script ---

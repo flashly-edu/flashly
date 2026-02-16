@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        .hidden {
+            display: none !important;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 500px;
+        }
+    </style>
+</head>
+
+<body>
+    <button onclick="openModal('test-modal')">Open Modal</button>
+
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div id="test-modal" class="modal hidden">
+            <h3>Test Modal</h3>
+            <p>This is a test modal</p>
+            <button onclick="closeModal()">Close</button>
+        </div>
+    </div>
+
+    <script>
+        function openModal(id) {
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modal = document.getElementById(id);
+            modalOverlay.classList.remove('hidden');
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            const modalOverlay = document.getElementById('modal-overlay');
+            document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+            modalOverlay.classList.add('hidden');
+        }
+    </script>
+</body>
+
+</html>

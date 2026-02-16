@@ -8,6 +8,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>Flashly - Master Your Exams with Spaced Repetition</title>
 
+
     <!-- SEO Meta Tags -->
     <meta name="description"
         content="Flashly is the ultimate free flashcard and study notes app for Singapore O-Level, A-Level, and IB students. Master your exams with spaced repetition, community decks, and tracked progress.">
@@ -39,6 +40,8 @@
     <link rel="apple-touch-icon" href="./Assets/logo.png">
 
     <link rel="stylesheet" href="style.css">
+
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -47,6 +50,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
     <link rel="icon" type="image/png" href="./Assets/logo.png">
 
@@ -476,20 +480,22 @@
                         </svg>
                         Insights
                     </button>
-                    <button id="nav-settings" class="nav-item">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                            class="icon-sm">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        Settings
-                    </button>
                 </nav>
 
                 <div class="sidebar-footer">
-                    <div id="user-display" class="text-sm text-secondary font-medium"></div>
-                    <div id="user-email" class="hidden"></div>
+                    <div class="user-info-group">
+                        <div id="user-display" class="text-sm text-secondary font-medium"></div>
+                        <button id="nav-settings" class="btn-icon-only-sm" title="Settings">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" class="icon-sm">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="user-display-email" class="text-xs text-secondary opacity-60"></div>
                 </div>
             </aside>
 
@@ -527,7 +533,8 @@
                         <div class="stats-grid">
                             <div class="stat-panel">
                                 <h3>Current Streak</h3>
-                                <div class="text-3xl font-bold text-primary mb-2" id="streak-count">0</div>
+                                <div class="text-5xl font-bold text-primary mb-2" style="font-size: 2rem;"
+                                    id="streak-count">0</div>
                                 <p class="text-sm text-secondary">days in a row</p>
                             </div>
                             <div class="stat-panel">
@@ -535,7 +542,7 @@
                                 <div class="relative w-32 h-32">
                                     <canvas id="retention-donut"></canvas>
                                     <div class="absolute inset-0 flex items-center justify-center text-xl font-bold"
-                                        id="retention-text">--%</div>
+                                        style="font-size: 1rem;" id="retention-text">--%</div>
                                 </div>
                             </div>
                             <div class="stat-panel">
@@ -543,7 +550,8 @@
                                 <div class="w-full px-4">
                                     <div class="flex justify-between text-sm mb-2" style="margin-bottom: 10px;">
                                         <span class="text-secondary">Progress</span>
-                                        <span class="font-bold text-primary" id="mastery-percent">0%</span>
+                                        <span class="font-bold text-primary" style="font-size: 1rem;"
+                                            id="mastery-percent">0%</span>
                                     </div>
                                     <div class="progress-bar">
                                         <div class="progress-fill" id="mastery-bar" style="width: 0%"></div>
@@ -559,7 +567,7 @@
                             <div class="section-header-compact">
                                 <h3 class="text-lg font-semibold">Ready to Learn</h3>
                                 <button class="btn btn-text btn-sm"
-                                    onclick="switchView('decks-view'); updateNav('nav-decks'); loadDecksView();">View
+                                    onclick="if(state.isGuest){ authMode='login'; updateAuthUI(); authModal.classList.remove('hidden'); document.body.classList.add('modal-open'); return; } switchView('decks-view'); updateNav('nav-decks'); loadDecksView();">View
                                     All</button>
                             </div>
                             <div id="today-my-decks-grid" class="grid-container"></div>
@@ -570,7 +578,7 @@
                             <div class="section-header-compact">
                                 <h3 class="text-lg font-semibold">From the Community</h3>
                                 <button class="btn btn-text btn-sm"
-                                    onclick="switchView('community-view'); updateNav('nav-community'); loadCommunityDecks();">Explore</button>
+                                    onclick="if(state.isGuest){ authMode='login'; updateAuthUI(); authModal.classList.remove('hidden'); document.body.classList.add('modal-open'); return; } switchView('community-view'); updateNav('nav-community'); loadCommunityDecks();">Explore</button>
                             </div>
                             <div id="today-community-grid" class="grid-container"></div>
                         </div>
@@ -580,7 +588,7 @@
                             <div class="section-header-compact">
                                 <h3 class="text-lg font-semibold">Notes that suit you</h3>
                                 <button class="btn btn-text btn-sm"
-                                    onclick="switchView('notes-view'); updateNav('nav-notes'); loadNotesView();">Marketplace</button>
+                                    onclick="if(state.isGuest){ authMode='login'; updateAuthUI(); authModal.classList.remove('hidden'); document.body.classList.add('modal-open'); return; } switchView('notes-view'); updateNav('nav-notes'); loadNotesView();">Marketplace</button>
                             </div>
                             <div id="today-notes-grid" class="grid-container"></div>
                         </div>
@@ -600,6 +608,14 @@
                                 </div>
                             </div>
                             <div style="display: flex; flex-direction: row; gap: 10px;">
+                                <button id="ai-generate-btn" class="btn btn-ai" style="display: none;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2" stroke="currentColor" class="icon-sm">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.456-2.454L18 2.25l.259 1.035a3.375 3.375 0 002.454 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                                    </svg>
+                                    AI Generate
+                                </button>
                                 <button id="create-deck-btn" class="btn btn-primary">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
                                         class="icon-sm">
@@ -811,14 +827,45 @@
                             </div>
                         </div>
 
-                        <div class="tabs">
-                            <button class="tab-btn active" data-tab="group-decks-tab">Decks</button>
-                            <button class="tab-btn" data-tab="group-members-tab">Members</button>
+                        <div class="tabs group-tabs"
+                            style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); display: flex; gap: 2rem;">
+                            <button class="tab-btn active" data-tab="group-decks-tab"
+                                style="padding-bottom: 0.75rem; font-weight: 600; font-size: 0.9rem;">Decks</button>
+                            <button class="tab-btn" data-tab="group-leaderboard-tab"
+                                style="padding-bottom: 0.75rem; font-weight: 600; font-size: 0.9rem;">Leaderboard</button>
+                            <button class="tab-btn" data-tab="group-activity-tab"
+                                style="padding-bottom: 0.75rem; font-weight: 600; font-size: 0.9rem;">Activity
+                                Feed</button>
+                            <button class="tab-btn" data-tab="group-members-tab"
+                                style="padding-bottom: 0.75rem; font-weight: 600; font-size: 0.9rem;">Members</button>
                         </div>
 
                         <div id="group-decks-tab" class="tab-content">
                             <div id="group-decks-grid" class="grid-container">
                                 <!-- Group decks -->
+                            </div>
+                        </div>
+
+                        <div id="group-leaderboard-tab" class="tab-content hidden">
+                            <div class="leaderboard-container card-style"
+                                style="padding: 0; overflow: hidden; border: 1px solid var(--border);">
+                                <div class="list-header"
+                                    style="padding: 1rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 60px 1fr 120px 120px; gap: 1rem; font-weight: 600; font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+                                    <span>Rank</span>
+                                    <span>Member</span>
+                                    <span style="text-align:center">Reviews</span>
+                                    <span style="text-align:right">Mastery</span>
+                                </div>
+                                <div id="group-leaderboard-list">
+                                    <!-- Leaderboard items -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="group-activity-tab" class="tab-content hidden">
+                            <div id="group-activity-feed" class="activity-feed"
+                                style="display: flex; flex-direction: column; gap: 1rem;">
+                                <!-- Activity items -->
                             </div>
                         </div>
 
@@ -991,6 +1038,15 @@
                                         style="display: flex; text-decoration: none;">
                                         Download PDF
                                     </a>
+                                    <button id="note-detail-ai-summary-btn" class="btn btn-ai flex-1 justify-center"
+                                        style="display: flex;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9Z" />
+                                        </svg>
+                                        AI Summary
+                                    </button>
                                     <button id="note-detail-share-btn" class="btn btn-secondary flex-1 justify-center"
                                         style="display: flex;">
                                         Share Note
@@ -1008,8 +1064,12 @@
                                             Click to view full document
                                         </div>
                                     </div>
-                                    <div class="note-snippet-wrapper">
-                                        <iframe id="note-snippet-frame" loading="lazy"></iframe>
+                                    <div class="note-snippet-wrapper" id="note-snippet-container">
+                                        <div id="note-snippet-loader"
+                                            class="flex items-center justify-center h-full hidden">
+                                            <div class="spinner"></div>
+                                        </div>
+                                        <div id="note-snippet-content"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1029,31 +1089,40 @@
                     </section>
 
                     <!-- PDF Viewer Modal -->
-                    <div id="pdf-viewer-modal" class="modal-overlay hidden">
+                    <div id="pdf-viewer-modal" class="modal-overlay hidden" style="z-index: 9999;">
                         <div class="pdf-modal-content">
                             <div class="pdf-header">
-                                <h3 id="pdf-viewer-title" class="text-lg font-bold">Note Title</h3>
-                                <button id="close-pdf-btn" class="btn-icon-only">
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke-width="1.5" stroke="currentColor" class="icon-sm">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="pdf-body"
-                                style="overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; display: flex; flex-direction: column;">
-                                <iframe id="pdf-frame" src="" width="100%" height="100%" frameborder="0"
-                                    style="display: block; flex: 1;"></iframe>
-                                <div id="pdf-fallback-container" class="hidden">
-                                    <a id="pdf-direct-link" href="#" target="_blank"
-                                        style="color: white; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+                                <div class="flex items-center gap-4">
+                                    <h3 id="pdf-viewer-title" class="text-lg font-bold"
+                                        style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        Note Title</h3>
+                                    <div id="pdf-page-indicator" class="text-sm text-secondary hidden">Page 1 / 1</div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <a id="pdf-download-link" href="#" download
+                                        class="btn btn-outline btn-sm hidden">Download</a>
+                                    <button id="close-pdf-btn" class="btn-icon-only"
+                                        style="background: var(--surface-hover);">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                            stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+                                            stroke-width="1.5" stroke="currentColor" class="icon-sm">
                                             <path stroke-linecap="round" stroke-linejoin="round"
-                                                d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                                                d="M6 18L18 6M6 6l12 12" />
                                         </svg>
-                                        Open Original
-                                    </a>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="pdf-body" style="background: #333; overflow: hidden; position: relative;">
+                                <div id="pdf-viewer-scroll-container"
+                                    style="width:100%; height:100%; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: 0; gap: 20px; scroll-behavior: smooth; margin: 0;">
+                                    <div id="pdf-canvas-container"
+                                        style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+                                        <!-- PDF iframe will be injected here -->
+                                        <div id="pdf-loader"
+                                            class="flex flex-col items-center justify-center p-20 text-white">
+                                            <div class="spinner mb-4"></div>
+                                            <p>Loading document...</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1094,7 +1163,7 @@
                                                 <path stroke-linecap="round" stroke-linejoin="round"
                                                     d="M12 4.5v15m7.5-7.5h-15" />
                                             </svg>
-                                            Import
+                                            Import to My Decks
                                         </button>
                                         <button id="toggle-public-btn" class="btn btn-secondary" title="Share">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -1237,7 +1306,7 @@
                                                     <path stroke-linecap="round" stroke-linejoin="round"
                                                         d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                                                 </svg>
-                                                Import CSV
+                                                Import CSV / Text
                                             </button>
                                         </div>
                                     </div>
@@ -1373,7 +1442,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
                                             stroke-width="2" stroke="currentColor" class="icon-sm">
                                             <path stroke-linecap="round" stroke-linejoin="round"
-                                                d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.894.15c.542.09.94.56.94 1.109v1.094c0 .55-.398 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527a1.125 1.125 0 01-1.449-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15a1.125 1.125 0 01-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
+                                                d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527a1.125 1.125 0 01-1.449-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15a1.125 1.125 0 01-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                 d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         </svg>
@@ -1705,7 +1774,7 @@
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="icon-xs">
                                 <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 003.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
+                                    d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 013.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
                             </svg>
                             Appearance
                         </button>
@@ -1990,164 +2059,101 @@
 
 
             <!-- Create Group Modal -->
-            <div id="create-group-modal" class="modal hidden">
-                <h3>Create New Group</h3>
-                <form id="create-group-form">
-                    <div class="input-group">
-                        <label>Group Name</label>
-                        <input type="text" id="new-group-name" required>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-text close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Create</button>
-                    </div>
-                </form>
-            </div>
 
             <!-- Join Group Modal -->
-            <div id="join-group-modal" class="modal hidden">
-                <h3>Join Group</h3>
-                <form id="join-group-form">
-                    <div class="input-group">
-                        <label>Invite Code</label>
-                        <input type="text" id="join-invite-code" placeholder="e.g. abcd1234..." required>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-text close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Join</button>
-                    </div>
-                </form>
-            </div>
 
             <!-- Share Modal -->
-            <div id="share-modal" class="modal hidden">
-                <div class="modal-header"
-                    style="display: flex; flex-direction: row; align-items: center; white-space: nowrap; overflow-x: auto; flex-wrap: nowrap;">
-                    <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">
-                        Share "
-                        <span class="text-dim" id="share-deck-title" style="white-space: nowrap; margin: 0;">Deck
-                            Title</span>
-                        "
-                    </h3>
-                </div>
 
-                <form id="share-form" class="mt-4">
-                    <div class="input-group">
-                        <label style="margin-top: 10px;">Add people by email</label>
-                        <div style="display:flex; gap:0.5rem">
-                            <input type="email" id="share-email" placeholder="email@example.com" required
-                                style="flex:1">
-                            <select id="share-role" class="form-control" style="width:100px">
-                                <option value="viewer">Viewer</option>
-                                <option value="editor">Editor</option>
-                            </select>
-                            <button type="submit" class="btn btn-primary">Invite</button>
-                        </div>
-                    </div>
-                </form>
-
-                <div id="group-shortcuts-container" class="mt-6 hidden">
-                    <label>Group Shortcuts</label>
-                    <ul id="group-shortcuts-list" class="mt-2" style="max-height:100px; overflow-y:auto">
-                        <!-- Group shortcuts items -->
-                    </ul>
-                </div>
-
-                <div class="share-list-container mt-6">
-                    <label>People with access</label>
-                    <ul id="share-list" class="mt-2" style="max-height:160px; overflow-y:auto">
-                        <!-- Shared users items -->
-                    </ul>
-                </div>
-
-                <div class="share-footer"
-                    style="margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border);">
-                    <div class="share-setting-row"
-                        style="display: flex; align-items: center; justify-content: space-between;">
-                        <div class="setting-info" style="display: flex; gap: 1rem; align-items: center;">
-                            <div class="setting-icon-box"
-                                style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                    stroke="currentColor" class="icon-sm" id="access-icon">
-                                    <path stroke-linecap="round" stroke-linejoin="round"
-                                        d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-                                </svg>
-                            </div>
-                            <div class="setting-text">
-                                <h4 id="access-status" style="margin: 0; font-size: 0.95rem;">Restricted</h4>
-                                <p id="access-desc" style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">
-                                    Only
-                                    people with access can open with the link</p>
-                            </div>
-                        </div>
-                        <button id="toggle-share-public-btn" class="btn btn-text text-primary"
-                            style="font-weight: 600;">Change</button>
-                    </div>
-                </div>
-
-                <div class="modal-actions"
-                    style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
-                    <button type="button" class="btn btn-outline" id="copy-share-link-modal">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                            class="icon-sm">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                        </svg>
-                        Copy Link
-                    </button>
-                    <button type="button" class="btn btn-secondary" id="add-to-group-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                            stroke="currentColor" class="icon-sm">
-                            <path stroke-linecap="round" stroke-linejoin="round"
-                                d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Add to Group
-                    </button>
-                    <div style="flex:1"></div>
-                    <button type="button" class="btn btn-primary close-modal">Done</button>
-                </div>
-            </div>
-
-            <!-- Bulk Add Modal -->
+            <!-- Import Flashcards Modal -->
             <div id="bulk-add-modal" class="modal hidden" style="max-width: 700px;">
-                <h3>Bulk Add Cards</h3>
-                <p class="text-secondary text-sm mb-4">Add multiple cards at once. One card per line.</p>
+                <div class="modal-header">
+                    <h3>Import Flashcards</h3>
+                    <button type="button" class="btn-icon-only close-modal">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <p class="text-secondary text-sm mb-4">Paste your data or upload a CSV file. Use one card per line.</p>
+
+                <div class="import-actions mb-4" style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                    <button type="button" class="btn btn-secondary btn-sm"
+                        onclick="document.getElementById('csv-upload').click()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-xs">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                        </svg>
+                        Choose CSV File
+                    </button>
+                    <input type="file" id="csv-upload" accept=".csv, .txt" hidden>
+                </div>
+
                 <form id="bulk-add-form">
                     <div class="input-group">
-                        <label>Cards Data (Front [Separator] Back)</label>
-                        <textarea id="bulk-add-input" rows="12"
+                        <label>Pasted Data</label>
+                        <textarea id="bulk-add-input" rows="10"
                             placeholder="Example:&#10;Apple | Red fruit&#10;Banana | Yellow fruit" required
-                            style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;"></textarea>
+                            style="font-family: inherit; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); padding: 0.75rem; width: 100%; resize: vertical;"></textarea>
                     </div>
 
                     <div class="bulk-settings"
-                        style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: var(--radius);">
-                        <label style="font-weight: 600; display: block; margin-bottom: 0.75rem;">Separator</label>
-                        <div class="separator-options"
-                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
-                            <label class="radio-container" style="font-size: 0.875rem;">
-                                <input type="radio" name="separator" value="|" checked> <span>| (Pipe)</span>
-                            </label>
-                            <label class="radio-container" style="font-size: 0.875rem;">
-                                <input type="radio" name="separator" value="-"> <span>- (Dash)</span>
-                            </label>
-                            <label class="radio-container" style="font-size: 0.875rem;">
-                                <input type="radio" name="separator" value=","> <span>, (Comma)</span>
-                            </label>
-                            <label class="radio-container" style="font-size: 0.875rem;">
-                                <input type="radio" name="separator" value="\t"> <span>Tab</span>
-                            </label>
-                            <input type="text" id="custom-separator" placeholder="e.g. ::"
-                                style="padding: 0.25rem 0.5rem; font-size: 0.875rem;">
-                        </div>
-                    </div>
+                        style="margin-top: 1rem; padding: 1rem; background: var(--background); border-radius: 12px; border: 1px solid var(--border);">
+                        <div class="settings-row" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <div class="setting-col" style="width: 100%;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <label style="font-weight: 600; font-size: 0.85rem;">Define Structure
+                                        Pattern</label>
+                                    <button type="button" id="import-auto-detect-btn" class="btn btn-text btn-xs"
+                                        style="font-size: 0.75rem; color: var(--primary);">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="2" stroke="currentColor" class="icon-xs"
+                                            style="width: 12px; height: 12px;">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.456-2.455l.259-1.036.259 1.036a3.375 3.375 0 002.455 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.455L18.259 8.715zM16.847 18.466L16.5 19.5l-.347-1.034a1.875 1.875 0 00-1.365-1.365L13.75 16.75l1.034-.347a1.875 1.875 0 001.365-1.365l.347-1.034.347 1.034a1.875 1.875 0 001.365 1.365l1.034.347-1.034.347a1.875 1.875 0 00-1.365 1.365L16.847 18.466z" />
+                                        </svg>
+                                        Auto-Detect
+                                    </button>
+                                </div>
+                                <div class="pattern-input-wrapper" style="position: relative;">
+                                    <textarea id="import-structure-pattern" rows="1"
+                                        style="font-family: inherit; font-size: 0.9rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); padding: 0.6rem 0.75rem; width: 100%; resize: none; font-weight: 500;"
+                                        placeholder="[front] | [back]"></textarea>
+                                </div>
+                            </div>
 
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-text close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" id="bulk-add-submit">Add All Cards</button>
-                    </div>
+                            <div id="import-preview-box"
+                                style="margin-top: 1rem; padding: 0.75rem; background: var(--surface); border: 1px dashed var(--border); border-radius: 8px;">
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                    <label
+                                        style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0;">Live
+                                        Structure Preview</label>
+                                    <span class="text-secondary" style="font-size: 0.7rem;">Tip: Delete header rows from
+                                        the data above</span>
+                                </div>
+                                <div id="import-preview-content" class="text-sm font-code"
+                                    style="min-height: 1.5rem; color: var(--text-primary);">
+                                    <span class="preview-placeholder">Enter some data to see preview...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="bulk-add-info" class="text-xs text-secondary mt-3 flex justify-between items-center">
+                            <span>Recognized cards: <strong id="bulk-add-card-count" class="text-primary"
+                                    style="font-size: 1.1rem;">0</strong></span>
+                        </div>
+
+                        <div class="modal-actions mt-6">
+                            <button type="button" class="btn btn-text close-modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" id="bulk-add-submit"
+                                style="min-width: 150px;">Import All Cards</button>
+                        </div>
+                    </div> <!-- Close bulk-settings -->
                 </form>
-            </div>
+            </div> <!-- Close bulk-add-modal -->
 
             <!-- Create Subject Modal -->
             <div id="create-subject-modal" class="modal hidden">
@@ -2165,23 +2171,6 @@
             </div>
 
             <!-- Move Deck Modal -->
-            <div id="move-deck-modal" class="modal hidden">
-                <h3>Move Deck to Subject</h3>
-                <form id="move-deck-form">
-                    <input type="hidden" id="move-deck-id">
-                    <div class="input-group">
-                        <label>Select Subject</label>
-                        <select id="move-deck-subject-select" required
-                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
-                            <!-- Populated by JS -->
-                        </select>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-text close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Move</button>
-                    </div>
-                </form>
-            </div>
 
             <!-- Deck Settings Modal -->
             <div id="deck-settings-modal" class="modal hidden">
@@ -2251,24 +2240,6 @@
                 </form>
             </div>
             <!-- Add Deck to Group Modal -->
-            <div id="add-to-group-modal" class="modal hidden">
-                <h3>Add Deck to Group</h3>
-                <p class="text-secondary text-sm mb-4">Choose a group to share this deck with.</p>
-                <form id="add-to-group-form">
-                    <input type="hidden" id="add-to-group-deck-id">
-                    <div class="input-group">
-                        <label>Select Group</label>
-                        <select id="add-to-group-select" required
-                            style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
-                            <!-- Populated by JS -->
-                        </select>
-                    </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-text close-modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Add to Group</button>
-                    </div>
-                </form>
-            </div>
             <!-- Add Note Modal -->
             <div id="add-note-modal" class="modal hidden">
                 <div class="modal-header">
@@ -2360,71 +2331,419 @@
             </div>
         </div> <!-- End Modal Overlay -->
 
-        <!-- Auth Modal/Overlay -->
-        <div id="auth-modal" class="auth-modal-overlay hidden">
-            <div class="auth-modal">
-                <button class="auth-modal-close btn-icon-only">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                        stroke="currentColor" class="icon-sm">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-                <div class="auth-box">
-                    <div class="auth-header">
-                        <h3 id="auth-title">Welcome Back</h3>
-                        <p id="auth-subtitle">Log in to your Flashly account</p>
-                    </div>
 
-                    <button id="google-auth-btn" class="btn btn-outline btn-full"
-                        style="margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                        <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
-                            <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
-                                <path fill="#4285F4"
-                                    d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" />
-                                <path fill="#34A853"
-                                    d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" />
-                                <path fill="#FBBC05"
-                                    d="M -21.484 53.529 C -21.734 52.769 -21.864 51.959 -21.864 51.129 C -21.864 50.299 -21.734 49.479 -21.484 48.719 L -21.484 45.629 L -25.464 45.629 C -26.284 47.259 -26.754 49.129 -26.754 51.129 C -26.754 53.129 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" />
-                                <path fill="#EA4335"
-                                    d="M -14.754 43.769 C -12.984 43.769 -11.424 44.369 -10.174 45.579 L -6.744 42.149 C -8.804 40.229 -11.514 39.009 -14.754 39.009 C -19.444 39.009 -23.494 41.709 -25.464 45.629 L -21.484 48.719 C -20.534 45.869 -17.884 43.769 -14.754 43.769 Z" />
-                            </g>
+        <!-- AI Generation Modal -->
+        <div id="ai-modal" class="modal-overlay hidden" style="z-index: 9999;">
+            <div class="modal card-style relative overflow-hidden ai-modal">
+
+                <!-- Premium Header -->
+                <div class="ai-modal-header">
+                    <div class="flex items-center gap-4">
+                        <div class="ai-header-icon">
+                            <span>✨</span>
+                        </div>
+                        <div>
+                            <h3 class="magic-text text-xl m-0">AI Deck Creator</h3>
+                            <p class="text-xs text-secondary m-0">Turn documents into flashcards instantly</p>
+                        </div>
+                    </div>
+                    <button id="close-ai-modal-btn" class="btn-icon-only-sm hover:text-danger transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                        Continue with Google
                     </button>
+                </div>
 
-                    <div style="display: flex; align-items: center; margin: 1.5rem 0; color: var(--text-secondary);">
-                        <div style="flex: 1; height: 1px; background: var(--border);"></div>
-                        <span style="padding: 0 10px; font-size: 0.8rem; text-transform: uppercase;">or</span>
-                        <div style="flex: 1; height: 1px; background: var(--border);"></div>
+                <div class="ai-modal-body">
+
+                    <!-- View 1: Input -->
+                    <div id="ai-modal-input-view" class="space-y-6">
+
+                        <!-- File Upload Zone -->
+                        <div class="ai-upload-zone" id="ai-pdf-dropzone" style="padding: 0.75rem 0;">
+                            <!-- Invisible file input covering the button area -->
+                            <input type="file" id="ai-pdf-upload" accept="application/pdf"
+                                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+
+                            <!-- Main upload trigger (looks like a clean button) -->
+                            <button type="button" class="w-full flex items-center justify-center gap-2.5
+               py-3.5 px-5
+               bg-[var(--primary-light)] hover:bg-[var(--primary)]/15
+               text-[var(--primary)] font-medium text-sm
+               border border-[var(--primary)]/30 rounded-xl
+               transition-all duration-200
+               shadow-sm hover:shadow active:scale-[0.985]">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                                    <path d="M12 12v9"></path>
+                                    <path d="m16 16-4-4-4 4"></path>
+                                </svg>
+                                Upload PDF
+                            </button>
+
+                            <!-- Optional subtle hint -->
+                            <div class="text-center text-xs text-[var(--text-tertiary)] mt-2.5 opacity-75">
+                                or paste your text below
+                            </div>
+
+                            <!-- Selected file feedback (clean & compact) -->
+                            <div id="ai-file-success" class="hidden mt-3 flex items-center justify-between 
+                                      bg-[var(--success)]/10 text-[var(--success)] 
+                                      text-sm font-medium px-4 py-2.5 rounded-lg border border-[var(--success)]/20">
+                                <div class="flex items-center gap-2">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2.5">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                    <span class="truncate max-w-[220px]" id="ai-filename-display">file.pdf</span>
+                                </div>
+                                <button id="ai-remove-file"
+                                    class="text-[var(--danger)] hover:text-[var(--danger)]/80 text-base leading-none px-1">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="relative flex py-4 items-center">
+                            <div class="flex-grow border-t border-border/50"></div>
+                            <span
+                                class="flex-shrink-0 mx-4 text-tertiary text-xs uppercase font-extrabold tracking-widest opacity-60">OR
+                                PASTE TEXT</span>
+                            <div class="flex-grow border-t border-border/50"></div>
+                        </div>
+
+                        <!-- Text Input -->
+                        <div class="input-group">
+                            <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Content
+                                Source</label>
+                            <textarea id="ai-input-text" class="ai-textarea"
+                                placeholder="Paste your study notes, an article, or topic here..."></textarea>
+                            <div class="flex justify-between items-center mt-2 px-1">
+                                <span class="text-xs text-tertiary">Min 50 characters recommended</span>
+                                <span id="text-char-count" class="text-xs font-semibold text-tertiary">0 chars</span>
+                            </div>
+                        </div>
+
+                        <!-- Options Grid -->
+                        <div class="ai-options-grid">
+                            <div class="input-group">
+                                <label class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Card
+                                    Count</label>
+                                <select id="ai-card-count" class="ai-select">
+                                    <option value="5">5 Cards</option>
+                                    <option value="10" selected>10 Cards</option>
+                                    <option value="15">15 Cards</option>
+                                    <option value="20">20 Cards</option>
+                                </select>
+                            </div>
+
+                            <div class="input-group">
+                                <label
+                                    class="text-xs font-bold text-secondary uppercase tracking-wider mb-2 block">Difficulty</label>
+                                <select id="ai-difficulty" class="ai-select">
+                                    <option value="simple">Simple / Concepts</option>
+                                    <option value="standard" selected>Standard Study</option>
+                                    <option value="advanced">Advanced / Exam Prep</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="ai-limit-badge">
+                            <div class="ai-limit-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                                    class="icon-sm">
+                                    <path fill-rule="evenodd"
+                                        d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4.13-5.694Z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <span id="ai-deck-limit-text" class="text-sm font-medium text-secondary">Free: 1 AI deck per
+                                week available</span>
+                        </div>
+
+                        <div style="margin-top: 2rem;">
+                            <button id="ai-generate-submit" class="btn btn-ai w-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                    stroke-width="2.5" stroke="currentColor" class="icon-sm">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                                </svg>
+                                Generate Flashcards
+                            </button>
+                        </div>
                     </div>
 
-                    <form id="auth-form">
-                        <div class="input-group">
-                            <label for="email">Email address</label>
-                            <input type="email" id="email" required placeholder="you@example.com">
+                    <!-- Generation Progress View -->
+                    <div id="ai-modal-loading-view" class="hidden">
+                        <div class="flex flex-col items-center justify-center py-12 text-center">
+                            <div class="ai-magic-loader mb-8">
+                                <div class="ai-sparkle s1"></div>
+                                <div class="ai-sparkle s2"></div>
+                                <div class="ai-sparkle s3"></div>
+                                <span class="text-3xl">✨</span>
+                            </div>
+                            <h3 class="magic-text text-2xl mb-3 ai-loading-status">Analyzing Content...</h3>
+                            <p class="text-secondary text-sm px-12 leading-relaxed">Our AI is crafting high-quality
+                                flashcards for you. This usually takes 15-30 seconds.</p>
+
+                            <div class="w-full bg-border/40 rounded-full h-2.5 mt-10 px-12" style="max-width: 400px;">
+                                <div id="ai-progress-bar" class="bg-ai-progress h-2.5 rounded-full"
+                                    style="width: 10%; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                            </div>
                         </div>
-                        <div class="input-group">
-                            <label for="password">Password</label>
-                            <input type="password" id="password" required placeholder="••••••••">
-                        </div>
-                        <button type="submit" id="auth-submit" class="btn btn-primary btn-full">Sign In</button>
-                    </form>
-                    <p class="auth-footer">
-                        <span id="auth-toggle-text">Don't have an account?</span>
-                        <a href="#" id="auth-toggle-link">Sign Up</a>
-                    </p>
+                    </div>
                 </div>
             </div>
         </div>
+    </div> <!-- End AI Modal -->
 
-        <!-- Toast Notification Container -->
-        <div id="toast-container"></div>
+
+
+    <!-- Redirect Modal -->
+    <div id="redirect-modal" class="redirect-modal hidden">
+        <div class="redirect-modal-content">
+            <h3 class="text-xl font-bold">New Domain Available</h3>
+            <p>Flashly has moved! Please use our new official domain for the best experience.</p>
+            <div class="flex gap-4 justify-center" style="display: flex; gap: 1rem; justify-content: center;">
+                <a href="https://flashly-edu.github.io/flashly/" class="btn btn-primary"
+                    style="text-decoration: none;">Go to flashly-edu</a>
+                <button class="btn btn-text" onclick="dismissRedirectModal()">Dismiss</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
 
     </div> <!-- End App Wrapper -->
 
 
+
+
+    <!-- Auth Modal/Overlay (Moved to bottom) -->
+    <div id="auth-modal" class="auth-modal-overlay hidden">
+        <div class="auth-modal">
+            <button class="auth-modal-close btn-icon-only">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                    stroke="currentColor" class="icon-sm">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <div class="auth-box">
+                <div class="auth-header">
+                    <h3 id="auth-title">Welcome Back</h3>
+                    <p id="auth-subtitle">Log in to your Flashly account</p>
+                </div>
+
+                <button id="google-auth-btn" class="btn btn-outline btn-full"
+                    style="margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+                        <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
+                            <path fill="#4285F4"
+                                d="M -3.264 51.509 C -3.264 50.719 -3.334 49.969 -3.454 49.239 L -14.754 49.239 L -14.754 53.749 L -8.284 53.749 C -8.574 55.229 -9.424 56.479 -10.684 57.329 L -10.684 60.329 L -6.824 60.329 C -4.564 58.239 -3.264 55.159 -3.264 51.509 Z" />
+                            <path fill="#34A853"
+                                d="M -14.754 63.239 C -11.514 63.239 -8.804 62.159 -6.824 60.329 L -10.684 57.329 C -11.764 58.049 -13.134 58.489 -14.754 58.489 C -17.884 58.489 -20.534 56.379 -21.484 53.529 L -25.464 53.529 L -25.464 56.619 C -23.494 60.539 -19.444 63.239 -14.754 63.239 Z" />
+                            <path fill="#FBBC05"
+                                d="M -21.484 53.529 C -21.734 52.769 -21.864 51.959 -21.864 51.129 C -21.864 50.299 -21.734 49.479 -21.484 48.719 L -21.484 45.629 L -25.464 45.629 C -26.284 47.259 -26.754 49.129 -26.754 51.129 C -26.754 53.129 -26.284 54.999 -25.464 56.619 L -21.484 53.529 Z" />
+                            <path fill="#EA4335"
+                                d="M -14.754 43.769 C -12.984 43.769 -11.424 44.369 -10.174 45.579 L -6.744 42.149 C -8.804 40.229 -11.514 39.009 -14.754 39.009 C -19.444 39.009 -23.494 41.709 -25.464 45.629 L -21.484 48.719 C -20.534 45.869 -17.884 43.769 -14.754 43.769 Z" />
+                        </g>
+                    </svg>
+                    Continue with Google
+                </button>
+
+                <div style="display: flex; align-items: center; margin: 1.5rem 0; color: var(--text-secondary);">
+                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
+                    <span style="padding: 0 10px; font-size: 0.8rem; text-transform: uppercase;">or</span>
+                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
+                </div>
+
+                <form id="auth-form">
+                    <div class="input-group">
+                        <label for="email">Email address</label>
+                        <input type="email" id="email" required placeholder="you@example.com">
+                    </div>
+                    <div class="input-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required placeholder="••••••••">
+                    </div>
+                    <button type="submit" id="auth-submit" class="btn btn-primary btn-full">Sign In</button>
+                </form>
+                <p class="auth-footer">
+                    <span id="auth-toggle-text">Don't have an account?</span>
+                    <a href="#" id="auth-toggle-link">Sign Up</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
     <script src="landing-nav.js" defer></script>
     <script src="script.js" defer></script>
+
+    <!-- Relocated Modals (Custom Overlay) -->
+    <div id="create-group-modal" class="custom-overlay hidden">
+        <div class="modal ">
+            <h3>Create New Group</h3>
+            <form id="create-group-form">
+                <div class="input-group">
+                    <label>Group Name</label>
+                    <input type="text" id="new-group-name" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-text close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="join-group-modal" class="custom-overlay hidden">
+        <div class="modal ">
+            <h3>Join Group</h3>
+            <form id="join-group-form">
+                <div class="input-group">
+                    <label>Invite Code</label>
+                    <input type="text" id="join-invite-code" placeholder="e.g. abcd1234..." required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-text close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Join</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="share-modal" class="custom-overlay hidden">
+        <div class="modal ">
+            <div class="modal-header"
+                style="display: flex; flex-direction: row; align-items: center; white-space: nowrap; overflow-x: auto; flex-wrap: nowrap;">
+                <h3 style="margin: 0; white-space: nowrap; flex-shrink: 0;">
+                    Share "
+                    <span class="text-dim" id="share-deck-title" style="white-space: nowrap; margin: 0;">Deck
+                        Title</span>
+                    "
+                </h3>
+            </div>
+
+            <form id="share-form" class="mt-4">
+                <div class="input-group">
+                    <label style="margin-top: 10px;">Add people by email</label>
+                    <div style="display:flex; gap:0.5rem">
+                        <input type="email" id="share-email" placeholder="email@example.com" required style="flex:1">
+                        <select id="share-role" class="form-control" style="width:100px">
+                            <option value="viewer">Viewer</option>
+                            <option value="editor">Editor</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary">Invite</button>
+                    </div>
+                </div>
+            </form>
+
+            <div id="group-shortcuts-container" class="mt-6 hidden">
+                <label>Group Shortcuts</label>
+                <ul id="group-shortcuts-list" class="mt-2" style="max-height:100px; overflow-y:auto">
+                    <!-- Group shortcuts items -->
+                </ul>
+            </div>
+
+            <div class="share-list-container mt-6">
+                <label>People with access</label>
+                <ul id="share-list" class="mt-2" style="max-height:160px; overflow-y:auto">
+                    <!-- Shared users items -->
+                </ul>
+            </div>
+
+            <div class="share-footer" style="margin-top: 0; padding-top: 1rem; border-top: 1px solid var(--border);">
+                <div class="share-setting-row"
+                    style="display: flex; align-items: center; justify-content: space-between;">
+                    <div class="setting-info" style="display: flex; gap: 1rem; align-items: center;">
+                        <div class="setting-icon-box"
+                            style="width: 40px; height: 40px; border-radius: 50%; background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor" class="icon-sm" id="access-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                            </svg>
+                        </div>
+                        <div class="setting-text">
+                            <h4 id="access-status" style="margin: 0; font-size: 0.95rem;">Restricted</h4>
+                            <p id="access-desc" style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">
+                                Only
+                                people with access can open with the link</p>
+                        </div>
+                    </div>
+                    <button id="toggle-share-public-btn" class="btn btn-text text-primary"
+                        style="font-weight: 600;">Change</button>
+                </div>
+            </div>
+
+            <div class="modal-actions"
+                style="border-top: 1px solid var(--border); padding-top: 1rem; margin-top: 1rem;">
+                <button type="button" class="btn btn-outline" id="copy-share-link-modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        class="icon-sm">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                    </svg>
+                    Copy Link
+                </button>
+                <button type="button" class="btn btn-secondary" id="add-to-group-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                        stroke="currentColor" class="icon-sm">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Add to Group
+                </button>
+                <div style="flex:1"></div>
+                <button type="button" class="btn btn-primary close-modal">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="move-deck-modal" class="custom-overlay hidden">
+        <div class="modal ">
+            <h3>Move Deck to Subject</h3>
+            <form id="move-deck-form">
+                <input type="hidden" id="move-deck-id">
+                <div class="input-group">
+                    <label>Select Subject</label>
+                    <select id="move-deck-subject-select" required
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-text close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Move</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="add-to-group-modal" class="custom-overlay hidden">
+        <div class="modal ">
+            <h3>Add Deck to Group</h3>
+            <p class="text-secondary text-sm mb-4">Choose a group to share this deck with.</p>
+            <form id="add-to-group-form">
+                <input type="hidden" id="add-to-group-deck-id">
+                <div class="input-group">
+                    <label>Select Group</label>
+                    <select id="add-to-group-select" required
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-text close-modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add to Group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </body>
 
 </html>
