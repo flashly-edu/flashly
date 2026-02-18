@@ -1101,7 +1101,7 @@ select:focus {
 }
 
 .due-breakdown {
-    display: none;
+    display: flex;
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.85rem;
@@ -6159,24 +6159,19 @@ body {
     }
 
     .deck-stats-row {
-        display: flex !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        padding: 0.5rem 0 !important;
-        gap: 1rem !important;
-        scrollbar-width: none;
-        /* Hide scrollbar */
-    }
-
-    .deck-stats-row::-webkit-scrollbar {
-        display: none;
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        padding: 1rem 0 !important;
+        gap: 0.5rem !important;
+        overflow: visible !important;
     }
 
     .deck-stat-item {
-        flex: 0 0 auto !important;
-        min-width: 80px;
-        padding: 0.5rem !important;
+        flex: 1 !important;
+        min-width: 0 !important;
+        padding: 0 !important;
         align-items: center;
+        text-align: center;
     }
 
     .deck-stat-divider {
@@ -6974,7 +6969,7 @@ html {
     margin: 0;
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text-primary);
+    /* Removed color: var(--text-primary); as it's overridden by text-fill-color */
     background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
     -webkit-background-clip: text;
     background-clip: text;
@@ -7176,7 +7171,9 @@ html {
     font-size: 0.75rem;
     opacity: 0.7;
     margin-top: 2px;
-}/* Gradient Text Animation */
+}
+
+/* Gradient Text Animation */
 .gradient-text-anim {
     background: linear-gradient(90deg, var(--border) 25%, var(--surface-hover) 50%, var(--border) 75%);
     background-size: 200% 100%;
@@ -7205,5 +7202,60 @@ html {
 
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* Study Summary Stats */
+.summary-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.stat-box:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary-light);
+}
+
+.stat-box .value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-box .label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+@media (max-width: 640px) {
+    .summary-stats-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.75rem;
+    }
+
+    .stat-box .value {
+        font-size: 1.25rem;
+    }
+
+    .stat-box .label {
+        font-size: 0.65rem;
     }
 }

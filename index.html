@@ -557,7 +557,7 @@
                                 <div class="action-main">
                                     <div class="due-count-large" id="today-due-count">0</div>
                                     <!-- Card Difficulty Breakdown - inline to the right -->
-                                    <div class="due-breakdown hidden" id="due-breakdown">
+                                    <div class="due-breakdown" id="due-breakdown">
                                         <span class="breakdown-item difficult" title="Cards still learning">
                                             <span class="breakdown-dot"></span>
                                             <span id="today-difficult-count">0</span> difficult
@@ -1098,8 +1098,10 @@
                                     <button id="note-detail-ai-summary-btn"
                                         class="btn btn-surface flex-1 justify-center"
                                         style="display: flex; align-items: center; gap: 0.5rem; border: 1px solid var(--border);">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke-width="1.5" stroke="currentColor" class="size-6">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
                                         </svg>
 
                                         Summarise
@@ -1555,82 +1557,62 @@
 
                     <!-- Study Summary View -->
                     <section id="study-summary-view" class="view hidden">
-                        <div class="summary-container card" style="max-width: 600px; padding: 3rem;">
+                        <div class="summary-container card"
+                            style="max-width: 500px; padding: 2.5rem; margin: 4rem auto; text-align: center; border-radius: 2rem; box-shadow: var(--shadow-xl); border: 1px solid var(--border);">
                             <div class="summary-header" style="margin-bottom: 2rem;">
                                 <div class="success-icon"
-                                    style="width: 64px; height: 64px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem;">
+                                    style="width: 80px; height: 80px; background: var(--success); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; box-shadow: 0 10px 20px rgba(34, 197, 94, 0.2);">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke-width="2.5" stroke="currentColor" style="width: 32px; height: 32px;">
+                                        stroke-width="3" stroke="currentColor" style="width: 40px; height: 40px;">
                                         <path stroke-linecap="round" stroke-linejoin="round"
                                             d="M4.5 12.75l6 6 9-13.5" />
                                     </svg>
                                 </div>
-                                <h2 style="font-size: 2rem; margin-bottom: 0.5rem;">Session Complete!</h2>
-                                <p class="text-secondary">Great work! You've made progress today.</p>
+                                <h1
+                                    style="font-size: 2.25rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; background: linear-gradient(135deg, var(--text-primary), var(--text-secondary)); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                                    Session Complete!</h1>
+                                <p class="text-secondary">Great progress! Keep the momentum going.</p>
                             </div>
 
-                            <div class="summary-stats-grid"
-                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2.5rem;">
-                                <div class="summary-stat-box"
-                                    style="background: var(--background); padding: 1.5rem; border-radius: 1rem; text-align: center;">
-                                    <div id="summary-count"
-                                        style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">0</div>
-                                    <div class="text-xs text-secondary uppercase font-bold tracking-wider">Studied</div>
-                                </div>
-                                <div class="summary-stat-box"
-                                    style="background: var(--background); padding: 1.5rem; border-radius: 1rem; text-align: center;">
-                                    <div id="summary-deck-progress"
-                                        style="font-size: 2rem; font-weight: 700; color: var(--text-primary);">0%</div>
-                                    <div class="text-xs text-secondary uppercase font-bold tracking-wider">Deck Mastery
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div id="summary-suggestions" style="text-align: left; margin-bottom: 2.5rem;">
-                                <h4 class="text-xs font-bold text-secondary uppercase tracking-wider mb-4">Recommended
-                                    Next Steps</h4>
-                                <div class="suggestion-list"
-                                    style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    <button id="retry-hard-cards-btn" class="btn btn-secondary w-full hidden"
-                                        style="justify-content: flex-start; padding: 1rem;">
-                                        <span
-                                            style="background: var(--danger); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem;"></span>
-                                        Revise Hard Cards (<span id="hard-cards-count">0</span>)
-                                    </button>
-                                    <button id="retry-good-cards-btn" class="btn btn-secondary w-full hidden"
-                                        style="justify-content: flex-start; padding: 1rem;">
-                                        <span
-                                            style="background: var(--success); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem;"></span>
-                                        Revise Known Cards (<span id="good-cards-count">0</span>)
-                                    </button>
-                                    <button id="new-study-session-btn" class="btn btn-primary w-full"
-                                        style="justify-content: flex-start; padding: 1.25rem;">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                            stroke-width="2" stroke="currentColor" class="icon-sm"
-                                            style="margin-right: 0.5rem;">
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                d="M12 4.5v15m7.5-7.5h-15" />
-                                        </svg>
-                                        Start New Session
-                                    </button>
-                                </div>
+                            <div id="study-summary-body">
+                                <!-- Stats injected here -->
                             </div>
 
                             <div class="session-info-stats"
-                                style="margin-bottom: 2.5rem; text-align: left; background: var(--surface-hover); padding: 1.5rem; border-radius: 1rem;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                                    <span class="text-sm font-medium">Learning Cards</span>
-                                    <span id="summary-learning-count" class="text-sm font-bold">0</span>
+                                style="margin: 2rem 0; text-align: left; background: var(--surface-hover); padding: 1.5rem; border-radius: 1.25rem; border: 1px solid var(--border);">
+                                <div
+                                    style="display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div
+                                            style="width: 10px; height: 10px; border-radius: 50%; background: var(--warning);">
+                                        </div>
+                                        <span class="text-sm font-semibold">Learning Cards</span>
+                                    </div>
+                                    <span id="summary-learning-count" class="badge"
+                                        style="background: var(--warning-light, #fef3c7); color: var(--warning); border: none; font-weight: 700;">0</span>
                                 </div>
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span class="text-sm font-medium">Known Cards</span>
-                                    <span id="summary-known-count" class="text-sm font-bold">0</span>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                        <div
+                                            style="width: 10px; height: 10px; border-radius: 50%; background: var(--success);">
+                                        </div>
+                                        <span class="text-sm font-semibold">Known Cards</span>
+                                    </div>
+                                    <span id="summary-known-count" class="badge"
+                                        style="background: var(--success-light, #dcfce7); color: var(--success); border: none; font-weight: 700;">0</span>
                                 </div>
                             </div>
 
-                            <button id="back-to-deck-btn" class="btn btn-text w-full">
-                                Return to Deck
-                            </button>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <button id="summary-finish-btn" class="btn btn-primary btn-lg w-full"
+                                    style="height: 56px; border-radius: 1rem; font-weight: 700;">
+                                    Continue Learning
+                                </button>
+                                <button id="back-to-deck-btn" class="btn btn-text w-full"
+                                    style="height: 48px; font-weight: 600;">
+                                    Return to Deck
+                                </button>
+                            </div>
                         </div>
                     </section>
                 </div> <!-- End Page Container -->
@@ -1837,8 +1819,7 @@
                         <button class="settings-tab-btn" data-tab="settings-appearance">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="icon-xs">
-                                <path stroke-linecap="round" stroke-linejoin="round"
-                                    d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.03 1.132c.325.327.674.629 1.043.903M12.918 14.5a16.035 16.035 0 01-3.388 1.62m3.388-1.62a22.502 22.502 0 013.75-6.152 2.25 2.25 0 00-4.098-1.848 22.5 22.5 0 00-3.041 8.001m3.388-1.62l3.387-1.62m3.388-1.62a3 3 0 014.242 4.243l-4.242 4.242m-4.242-4.242l4.242-4.242m-4.242 4.242a3 3 0 004.242 4.242m-4.242-4.242L12.918 14.5" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /> 
                             </svg>
                             Appearance
                         </button>
@@ -2098,7 +2079,7 @@
                             <img src="./Assets/logo.png" alt="Flashly Logo"
                                 style="width: 80px; height: 80px; margin-bottom: 1.5rem;">
                             <h2 class="text-2xl font-bold">Flashly</h2>
-                            <p class="text-secondary mb-8">Version 0.28-beta</p>
+                            <p class="text-secondary mb-8">Version 0.46</p>
 
                             <div
                                 style="max-width: 400px; margin: 0 auto; line-height: 1.6; color: var(--text-secondary);">

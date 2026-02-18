@@ -1515,80 +1515,140 @@ async function loadTodayView() {
 
     // 2. Fetch Due Cards count across ALL deck
     // We need to fetch all cards for user? Or just count.
-// Optimization: Call a stored procedure if possible, or select count.
-// For now, client-side filtering of decks -> cards might be heavy but simple.
+    // Optimization: Call a stored procedure if possible, or select count.
+    // For now, client-side filtering of decks -> cards might be heavy but simple.
     // Better: Fetch cards with due_at <= now()
 
-    const now = new Date().toISOString();
-    
-    // Fetch cards with due_at <= now to calculate breakdown
-    const { data: dueCards, error: cardsError } = await sb
+    // 2. Fetch Due Cards count across ALL deck
+    const nowISO = new Date().toISOString();
+
+    // Fetch cards: Due (due_at <= now) OR New (reviews_count = 0)
+    // Note: 'New' cards usually have reviews_count = 0.
+    // We'll broaden the query to get all potential candidates, then filter in JS to be safe and consistent with study logic.
+    // Fetching minimal fields for performance
+    const { data: candidateCards, error: cardsError } = await sb
         .from('cards')
-        .select('id, interval_days, reviews_count')
-        .lte('due_at', now); // due_at <= now
+        .select('id, interval_days, reviews_count, due_at')
+        .or(`due_at.lte.${nowISO},reviews_count.eq.0`);
 
     let totalDue = 0;
     let difficultCount = 0;
     let easyCount = 0;
+    let newCount = 0;
 
-    if (!cardsError && dueCards) {
-        totalDue = dueCards.length;
-        
-        // Define limit here before using it
-        let limit = state.settings.dailyLimit || 20;
-        if (limit > 1000) limit = totalDue;
-        
-        // Sort cards by due date to get the ones that will be reviewed
-        dueCards.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
-        
-        // Get only the cards within the daily limit
-        const cardsToReview = dueCards.slice(0, limit);
-        
-        // Calculate difficult (learning) and easy (review) counts from limited cards
-        cardsToReview.forEach(card => {
+    if (!cardsError && candidateCards) {
+        const now = new Date();
+
+        // Filter exactly as startStudySession does to ensure consistency
+        let dueQueue = candidateCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
+        let newQueue = candidateCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+
+        // Sort Due: Overdue first
+        dueQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+
+        // Total Available before limits
+        const totalAvailable = dueQueue.length + newQueue.length;
+
+        // Apply Limits (Matches startStudySession logic)
+        // User setting: "Daily Goal" usually implies TOTAL cards to study today
+        const totalLimit = state.settings.dailyLimit || 50;
+
+        // We'll prioritize Due cards, then fill rest with New cards (or interleave)
+        // For the count, we just need the total number that will be shown.
+        // If (Due + New) > Limit, we cap at Limit.
+
+        const actualCount = Math.min(totalAvailable, totalLimit);
+
+        // Simulating the interleaving/limit selection to get accurate breakdown
+        // Let's create the breakdown based on the theoretical session content
+
+        let sessionCards = [];
+
+        // Strategy: Fill with Due first up to limit? Or balance?
+        // Anki default: Review limit (100) + New limit (20). 
+        // User Setting: "Daily Goal" (e.g. 30). This usually functions as a total cap.
+        // Let's assume we want to mix them.
+
+        // Temporary Logic for Count:
+        // Take up to `totalLimit` cards, prioritizing Due cards (SRS requirement), then New.
+        // (This behavior ensures user reviews what they need to first)
+
+        let addedCount = 0;
+
+        // 1. Add Due Cards (up to limit)
+        for (const card of dueQueue) {
+            if (addedCount >= totalLimit) break;
+            sessionCards.push(card);
+            addedCount++;
+        }
+
+        // 2. Add New Cards (if space remains)
+        for (const card of newQueue) {
+            if (addedCount >= totalLimit) break;
+            sessionCards.push(card);
+            addedCount++;
+        }
+
+        // Calculate breakdown on the *sessionCards*
+        sessionCards.forEach(card => {
             const interval = Number(card.interval_days || 0);
             const reviews = Number(card.reviews_count || 0);
-            
+
             if (reviews === 0) {
-                // New card - count as difficult for now
-                difficultCount++;
+                newCount++; // Blue / New
+            } else if (interval < 21 && interval >= 1) {
+                // Young / Learning (Standard Anki cutoff is 21 days for 'mature')
+                // But for "Difficult" label, maybe just call Learning (< 1d) + Young (< 21d) = "Learning/Review"?
+                // User asked for "Difficult vs Easy".
+                // Let's map: 
+                // New -> New
+                // Interval < 1 -> Difficult (Learning/Relearning)
+                // Interval >= 1 -> Easy (Review)
+                easyCount++;
             } else if (interval < 1) {
-                // Learning (interval < 1 day) - difficult
                 difficultCount++;
             } else {
-                // Review (interval >= 1 day) - easy
-                easyCount++;
+                easyCount++; // Mature
             }
         });
-        
-        const displayCount = Math.min(totalDue, limit);
-        document.getElementById('today-due-count').textContent = displayCount;
 
-        // Update subtitle to show context
+        // Refined stats based on user request "Difficult vs Easy" next to count
+        // We'll bundle New + Lapsed into "Learning" (Difficult-ish) or keep separate?
+        // User asked specifically for "Difficult vs Easy".
+        // Let's treat New + Interval < 1 as "To Learn/Relearn" (Difficult side)
+        // Let's treat Interval >= 1 as "To Review" (Easy side)
+
+        difficultCount = newCount + sessionCards.filter(c => c.reviews_count > 0 && c.interval_days < 1).length;
+        easyCount = sessionCards.filter(c => c.reviews_count > 0 && c.interval_days >= 1).length;
+
+        document.getElementById('today-due-count').textContent = actualCount;
+
+        // Subtitle
         const subText = document.getElementById('today-due-label');
         if (subText) {
-            if (limit < totalDue) {
-                subText.innerHTML = `cards to review (Goal: ${limit}) <span style="font-size:0.85em; opacity:0.7; display:block; margin-top:4px;">Total backlog: ${totalDue}</span>`;
+            if (actualCount < totalAvailable) {
+                subText.innerHTML = `cards to study (Goal: ${totalLimit}) <span title="Total Backlog" style="font-size:0.85em; opacity:0.7; display:block; margin-top:4px;">${totalAvailable - actualCount} others waiting</span>`;
             } else {
                 subText.textContent = 'cards due today';
             }
         }
 
-        // Update difficult/easy breakdown
+        // Breakdown UI
         const difficultEl = document.getElementById('today-difficult-count');
         const easyEl = document.getElementById('today-easy-count');
         const breakdownEl = document.getElementById('due-breakdown');
-        
-        if (difficultEl) difficultEl.textContent = difficultCount;
-        if (easyEl) easyEl.textContent = easyCount;
-        
-        // Show/hide breakdown based on whether there are any cards
+
+        if (difficultEl) {
+            difficultEl.textContent = difficultCount;
+            difficultEl.closest('.breakdown-item').title = `New cards and cards you're still learning (${difficultCount})`;
+        }
+        if (easyEl) {
+            easyEl.textContent = easyCount;
+            easyEl.closest('.breakdown-item').title = `Cards you've graduated and are reviewing (${easyCount})`;
+        }
+
         if (breakdownEl) {
-            if (totalDue > 0) {
-                breakdownEl.classList.remove('hidden');
-            } else {
-                breakdownEl.classList.add('hidden');
-            }
+            breakdownEl.classList.toggle('hidden', actualCount === 0);
         }
     }
 
@@ -3709,12 +3769,52 @@ async function startStudySession(restart = false) {
         }
     } else {
         const now = new Date();
-        queue = allCards.filter(c => !c.due_at || new Date(c.due_at) <= now || c.interval_days === 0);
-        queue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
-        const limit = state.settings.dailyLimit || 20;
-        if (queue.length > limit) {
-            queue = queue.slice(0, limit);
+        // Separate Valid Due and New Cards
+        // Due: Reviews > 0 AND (due_at <= now OR in learning/relearning)
+        let totalDueList = allCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
+
+        // New: Reviews == 0
+        let totalNewList = allCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+
+        // Sort Due: Overdue first
+        totalDueList.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+
+        // --- Limits Logic ---
+        // Daily Limit acts as a TOTAL session cap for today
+        const totalLimit = state.settings.dailyLimit || 50;
+
+        // We prioritize Due cards (standard SRS), then fill remainder with New cards
+        // But we want to interleave IF we have both.
+        // So we select the candidates first.
+
+        // 1. Take Due Cards (up to limit)
+        let selectedDue = totalDueList.slice(0, totalLimit);
+
+        // 2. Remaining slots for New Cards
+        let remainingSlots = totalLimit - selectedDue.length;
+        let selectedNew = [];
+        if (remainingSlots > 0) {
+            selectedNew = totalNewList.slice(0, remainingSlots);
+        }
+
+        // --- Interleaving Logic ---
+        // Create a mixed queue from the selected cards
+        // Strategy: 1 New card every 4 Reviews (or balance based on ratio)
+
+        queue = [];
+        let dIndex = 0;
+        let nIndex = 0;
+
+        while (dIndex < selectedDue.length || nIndex < selectedNew.length) {
+            // Add up to 4 Reviews
+            for (let i = 0; i < 4 && dIndex < selectedDue.length; i++) {
+                queue.push(selectedDue[dIndex++]);
+            }
+            // Add 1 New Card
+            if (nIndex < selectedNew.length) {
+                queue.push(selectedNew[nIndex++]);
+            }
         }
     }
 
@@ -3724,6 +3824,7 @@ async function startStudySession(restart = false) {
     }
 
     state.studyQueue = queue;
+    state.cards = allCards; // Ensure state.cards is updated even for global sessions
     state.currentCardIndex = 0;
     state.sessionRatings = []; // Reset ratings for new session
 
@@ -3938,33 +4039,69 @@ function updateStudyStats() {
     if (reviewEl) { reviewEl.textContent = reviewCount; reviewEl.classList.toggle('hidden', reviewCount === 0); }
 }
 
+// --- Advanced SRS Logic (Anki-like) ---
+
+const LEARNING_STEPS = [1 / (24 * 60), 10 / (24 * 60)]; // 1 min, 10 min
+const GRADUATING_INTERVAL = 1; // 1 day
+const EASY_INTERVAL = 4; // 4 days
+
+function getCardState(card) {
+    if (!card.reviews_count || card.reviews_count === 0) return 'new';
+    if (card.interval_days < 1) return 'learning';
+    return 'review';
+}
+
 function calculateNextReview(card, rating) {
     let interval = Number(card.interval_days) || 0;
     let ease = Number(card.ease_factor) || 2.5;
+    const state = getCardState(card);
 
-    // Anki-like Logic
-    if (rating === 1) { // Again
-        interval = 0.01; // < 1 min (Reset)
-        ease = Math.max(1.3, ease - 0.2);
-    } else if (rating === 2) { // Hard
-        interval = (interval === 0) ? 0.5 : Math.max(0.02, interval * 1.2);
-        ease = Math.max(1.3, ease - 0.15);
-    } else if (rating === 3) { // Good
-        if (interval === 0) interval = 1; // Graduate to 1 day
-        else if (interval < 1) interval = 1; // Graduate from learning step
-        else interval = interval * ease;
-    } else if (rating === 4) { // Easy
-        if (interval === 0) interval = 4;
-        else if (interval < 1) interval = 4;
-        else interval = interval * ease * 1.3;
-        ease += 0.15;
+    // Learning Phase (New or Lapsed)
+    if (state === 'new' || state === 'learning') {
+        let stepIndex = 0;
+        if (interval >= LEARNING_STEPS[0]) stepIndex = 1; // Approx check for step
+
+        if (rating === 1) { // Again
+            interval = LEARNING_STEPS[0]; // Reset to 1 min
+        } else if (rating === 2) { // Hard
+            interval = (interval + LEARNING_STEPS[0]) / 2; // Avg current + 1m
+        } else if (rating === 3) { // Good
+            if (stepIndex < LEARNING_STEPS.length - 1) {
+                interval = LEARNING_STEPS[stepIndex + 1]; // Next step (10m)
+            } else {
+                interval = GRADUATING_INTERVAL; // Graduate to 1 day
+            }
+        } else if (rating === 4) { // Easy
+            interval = EASY_INTERVAL; // Graduate to 4 days
+        }
+    }
+    // Review Phase
+    else {
+        if (rating === 1) { // Again (Lapse)
+            interval = LEARNING_STEPS[0]; // Re-enter learning at 1 min
+            ease = Math.max(1.3, ease - 0.2);
+        } else if (rating === 2) { // Hard
+            interval = interval * 1.2;
+            ease = Math.max(1.3, ease - 0.15);
+        } else if (rating === 3) { // Good
+            interval = interval * ease;
+        } else if (rating === 4) { // Easy
+            interval = interval * ease * 1.3;
+            ease += 0.15;
+        }
+    }
+
+    // Add "fuzz" to prevent clumping (only for intervals > 2 days)
+    if (interval > 2) {
+        const fuzz = (Math.random() * 0.1) - 0.05; // +/- 5%
+        interval = interval * (1 + fuzz);
     }
 
     return { interval, ease };
 }
 
 function formatInterval(interval) {
-    if (interval < 0.001) return '< 1m';
+    if (interval < 1 / (24 * 60)) return '<1m';
     if (interval < 1 / 24) return Math.round(interval * 24 * 60) + 'm';
     if (interval < 1) return Math.round(interval * 24) + 'h';
     if (interval >= 365) return Math.round(interval / 365) + 'y';
@@ -3978,23 +4115,29 @@ async function showNextCard(animate = true) {
         return;
     }
 
-    // Safety: prevent multiple clicks/flips during transition
     state.isTransitioning = true;
-
-    // Reset flip status for new card
     state.isFlipped = false;
+
+    // Update Progress Bar
+    const progressFill = document.getElementById('study-progress-bar');
+    if (progressFill) {
+        const pct = ((state.currentCardIndex) / state.studyQueue.length) * 100;
+        progressFill.style.width = `${pct}%`;
+    }
+
+    // Update Counts (Remaining)
+    updateStudyStats();
+
     const flashcard = document.getElementById('active-flashcard');
     if (flashcard) {
         flashcard.classList.remove('is-flipped');
-        flashcard.style.transform = ''; // Clear manual overrides
+        flashcard.style.transform = '';
     }
 
-    // Update Stats
-    updateStudyStats();
-
     const card = state.studyQueue[state.currentCardIndex];
+    if (!card) { finishStudySession(); return; }
 
-    // Predict Intervals for Buttons
+    // Predict Intervals for Buttons & Update Labels
     const btnAgain = document.querySelector('.rate-again .rate-time');
     const btnHard = document.querySelector('.rate-hard .rate-time');
     const btnGood = document.querySelector('.rate-good .rate-time');
@@ -4005,49 +4148,39 @@ async function showNextCard(animate = true) {
     if (btnGood) btnGood.textContent = formatInterval(calculateNextReview(card, 3).interval);
     if (btnEasy) btnEasy.textContent = formatInterval(calculateNextReview(card, 4).interval);
 
-    // Close controls
     toggleStudyControls(false);
-
-    const progressFill = document.getElementById('study-progress-bar');
-    if (progressFill) {
-        const pct = ((state.currentCardIndex) / state.studyQueue.length) * 100;
-        progressFill.style.width = `${pct}%`;
-    }
 
     // Content Injection
     const frontEl = document.getElementById('study-front');
     const backEl = document.getElementById('study-back');
 
-    if (animate) {
-        flashcard.style.opacity = '0';
-        setTimeout(() => {
-            frontEl.innerHTML = renderContent(card.front);
-            backEl.innerHTML = renderContent(card.back);
-            renderMath(frontEl);
-            renderMath(backEl);
-
-            flashcard.style.opacity = '1';
-            flashcard.style.transform = '';
-            state.isTransitioning = false;
-        }, 200);
-    } else {
+    const updateContent = () => {
         frontEl.innerHTML = renderContent(card.front);
         backEl.innerHTML = renderContent(card.back);
         renderMath(frontEl);
         renderMath(backEl);
-        flashcard.style.transform = '';
+        if (animate) {
+            flashcard.style.opacity = '1';
+        }
         state.isTransitioning = false;
+    };
+
+    if (animate) {
+        flashcard.style.opacity = '0';
+        setTimeout(updateContent, 200);
+    } else {
+        updateContent();
     }
 }
 
 async function rateCard(rating) {
     const card = state.studyQueue[state.currentCardIndex];
-    const isOwner = state.user && state.decks.some(d => d.id === card.deck_id);
+    const isOwner = state.user && state.decks && state.decks.some(d => d.id === card.deck_id);
 
-    // Track locally for session summary
+    // Track locally
     state.sessionRatings.push({ cardId: card.id, rating: rating, card: card });
 
-    // Save progress log for any logged in user
+    // Log study event
     if (state.user) {
         sb.from('study_logs').insert([{
             user_id: state.user.id,
@@ -4055,33 +4188,45 @@ async function rateCard(rating) {
             deck_id: card.deck_id,
             rating: rating,
             review_time: new Date()
-        }]).then(({ error }) => { if (error) console.error(error); });
+        }]).then(({ error }) => { if (error) console.error("Log error:", error); });
     }
 
-    // SRS Calc (Advanced)
+    // Calculate next state
     const { interval, ease } = calculateNextReview(card, rating);
-    const interval_days = interval;
-    const ease_factor = ease;
-    const reviews_count = Number(card.reviews_count || 0) + 1;
 
+    // Update Card Object (Local)
+    card.interval_days = interval;
+    card.ease_factor = ease;
+    card.reviews_count = (Number(card.reviews_count) || 0) + 1;
+    card.last_reviewed = new Date();
+
+    // Calculate Due Date
     const due_at = new Date();
-    due_at.setMinutes(due_at.getMinutes() + (interval_days * 24 * 60));
+    due_at.setMinutes(due_at.getMinutes() + (interval * 24 * 60));
+    card.due_at = due_at; // Update local due date immediately
 
-    // Update DB if owner (non-blocking)
+    // Requeue if Learning Step (interval < 1 day) AND rating was Again/Hard
+    // Or if it's a learning step that needs to be seen again today
+    const inSession = interval < 1.0;
+
+    if (inSession) {
+        // Re-insert into queue for same-session review
+        // Logic: specific insertion point or end of queue?
+        // Simple: End of queue
+        state.studyQueue.push(card);
+        // showToast(`Card requeued in ${formatInterval(interval)}`, 'info');
+    }
+
+    // Update DB (Non-blocking)
     if (isOwner) {
         sb.from('cards').update({
-            interval_days, ease_factor, reviews_count,
+            interval_days: interval,
+            ease_factor: ease,
+            reviews_count: card.reviews_count,
             last_reviewed: new Date(),
             due_at: due_at
         }).eq('id', card.id).then(({ error }) => { if (error) console.error("SRS Update Error:", error); });
     }
-
-    // Update local card object for accurate summary stats
-    card.interval_days = interval_days;
-    card.ease_factor = ease_factor;
-    card.reviews_count = reviews_count;
-    card.last_reviewed = new Date();
-    card.due_at = due_at;
 
     state.currentCardIndex++;
     showNextCard();
@@ -4089,65 +4234,99 @@ async function rateCard(rating) {
 
 async function finishStudySession() {
     switchView('study-summary-view');
-    document.getElementById('summary-count').textContent = state.studyQueue.length;
-    document.getElementById('study-progress-bar').style.width = '100%';
-    document.getElementById('study-progress-text').textContent = `${state.studyQueue.length} / ${state.studyQueue.length}`;
 
-    // Calculate session stats for suggestions
+    // Calculate Stats
+    const total = state.sessionRatings.length;
     const hardCards = state.sessionRatings.filter(r => r.rating <= 2);
     const goodCards = state.sessionRatings.filter(r => r.rating >= 3);
+    const hard = hardCards.length;
+    const good = goodCards.length;
+    const accuracy = total > 0 ? Math.round((good / total) * 100) : 0;
 
-    // Update counts in UI
-    const hardCountEl = document.getElementById('hard-cards-count');
-    const goodCountEl = document.getElementById('good-cards-count');
-    if (hardCountEl) hardCountEl.textContent = hardCards.length;
-    if (goodCountEl) goodCountEl.textContent = goodCards.length;
+    // Update progress elements
+    const progressBar = document.getElementById('study-progress-bar');
+    const progressText = document.getElementById('study-progress-text');
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressText) progressText.textContent = `Accuracy: ${accuracy}%`;
 
-    // Suggestion logic
-    const retryHardBtn = document.getElementById('retry-hard-cards-btn');
-    const retryGoodBtn = document.getElementById('retry-good-cards-btn');
+    // Inject Summary HTML
+    const container = document.getElementById('study-summary-body');
+    if (container) {
+        container.innerHTML = `
+            <div class="summary-stats-grid">
+                <div class="stat-box">
+                    <div class="value">${total}</div>
+                    <div class="label">Cards</div>
+                </div>
+                <div class="stat-box" style="border-color: ${accuracy > 80 ? 'var(--success)' : accuracy > 50 ? 'var(--warning)' : 'var(--danger)'}">
+                    <div class="value">${accuracy}%</div>
+                    <div class="label">Accuracy</div>
+                </div>
+                <div class="stat-box">
+                    <div class="value">${hard}</div>
+                    <div class="label">Needs Work</div>
+                </div>
+            </div>
+            
+            <div id="summary-suggestions" style="text-align: left; margin-top: 2rem;">
+                <h4 style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">Recommended Next Steps</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${hard > 0 ? `
+                        <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem; border-color: var(--danger)30;" id="retry-hard-btn">
+                            <span style="background: var(--danger); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.75rem;"></span>
+                            Focus on Difficult Cards (${hard})
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-primary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="startStudySession(true)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Continue Daily Review
+                    </button>
+                    <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="switchView('decks-view')">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                        </svg>
+                        Back to My Decks
+                    </button>
+                </div>
+            </div>
+        `;
 
-    if (retryHardBtn) {
-        retryHardBtn.classList.toggle('hidden', hardCards.length === 0);
-        retryHardBtn.onclick = () => {
-            state.studyQueue = hardCards.map(r => r.card);
-            state.currentCardIndex = 0;
-            state.sessionRatings = [];
-            switchView('study-view');
-            showNextCard(false);
-        };
-    }
+        // Attach event for dynamic retry button
+        const retryHardBtn = container.querySelector('#retry-hard-btn');
+        if (retryHardBtn) {
+            retryHardBtn.onclick = () => {
+                state.studyQueue = hardCards.map(r => r.card);
+                state.currentCardIndex = 0;
+                state.sessionRatings = [];
+                switchView('study-view');
+                showNextCard(false);
+            };
+        }
+        // Mastery / Deck Stats
+        if (state.cards) {
+            const totalCards = state.cards.length;
+            const mastered = state.cards.filter(c => c.interval_days >= 21).length; // Anki standard for mature
+            const learning = totalCards - mastered;
 
-    if (retryGoodBtn) {
-        retryGoodBtn.classList.toggle('hidden', goodCards.length === 0);
-        retryGoodBtn.onclick = () => {
-            state.studyQueue = goodCards.map(r => r.card);
-            state.currentCardIndex = 0;
-            state.sessionRatings = [];
-            switchView('study-view');
-            showNextCard(false);
-        };
-    }
+            const masteryEl = document.getElementById('summary-deck-progress');
+            if (masteryEl) masteryEl.textContent = totalCards > 0 ? Math.round((mastered / totalCards) * 100) + '%' : '0%';
 
-    const newSessionBtn = document.getElementById('new-study-session-btn');
-    if (newSessionBtn) {
-        newSessionBtn.onclick = () => startStudySession(true);
-    }
+            // Optional detailed progress if these elements exist
+            const learnCountEl = document.getElementById('summary-learning-count');
+            const knownCountEl = document.getElementById('summary-known-count');
+            if (learnCountEl) learnCountEl.textContent = `${learning} / ${totalCards}`;
+            if (knownCountEl) knownCountEl.textContent = `${mastered} / ${totalCards}`;
+        }
 
-    // Extended Stats
-    if (state.currentDeck) {
-        const total = state.cards.length;
-        // Count from all cards in state (not just studied ones)
-        const mastered = state.cards.filter(c => c.interval_days >= 3).length;
-        const learning = total - mastered;
-
-        const masteryEl = document.getElementById('summary-deck-progress');
-        if (masteryEl) masteryEl.textContent = total > 0 ? Math.round((mastered / total) * 100) + '%' : '0%';
-
-        const learnCountEl = document.getElementById('summary-learning-count');
-        const knownCountEl = document.getElementById('summary-known-count');
-        if (learnCountEl) learnCountEl.textContent = `${learning} / ${total}`;
-        if (knownCountEl) knownCountEl.textContent = `${mastered} / ${total}`;
+        // Handle Finish Button
+        const finishBtn = document.getElementById('summary-finish-btn');
+        if (finishBtn) {
+            finishBtn.onclick = () => {
+                exitStudyMode();
+            };
+        }
     }
 }
 
@@ -6430,25 +6609,20 @@ async function renderPDFSnippet(url) {
             <div class="pdf-skeleton-loader" style="
                 width: 100%;
                 height: 100%;
-                background: white;
-                padding: 2rem;
+                background: var(--surface-hover);
                 display: flex;
                 flex-direction: column;
-                gap: 1rem;
+                padding: 1.5rem;
+                gap: 1.5rem;
+                position: relative;
+                overflow: hidden;
+                border-radius: 12px;
             ">
-                <div class="skeleton-text" style="width: 70%; height: 24px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite;"></div>
-                <div class="skeleton-text" style="width: 50%; height: 16px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.1s;"></div>
-                <div style="margin-top: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
-                    <div class="skeleton-text" style="width: 100%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.2s;"></div>
-                    <div class="skeleton-text" style="width: 95%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.3s;"></div>
-                    <div class="skeleton-text" style="width: 98%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.4s;"></div>
-                    <div class="skeleton-text" style="width: 92%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.5s;"></div>
-                </div>
-                <div style="margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem;">
-                    <div class="skeleton-text" style="width: 100%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.6s;"></div>
-                    <div class="skeleton-text" style="width: 97%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.7s;"></div>
-                    <div class="skeleton-text" style="width: 94%; height: 12px; background: #e2e8f0; border-radius: 4px; animation: shimmer 1.5s infinite; animation-delay: 0.8s;"></div>
-                </div>
+                <div class="skeleton-shimmer"></div>
+                <!-- Abstract document blocks -->
+                <div style="width: 60%; height: 32px; background: var(--border); border-radius: 8px; opacity: 0.6;"></div>
+                <div style="width: 100%; flex: 1; background: var(--border); border-radius: 12px; opacity: 0.4;"></div>
+                <div style="width: 100%; height: 80px; background: var(--border); border-radius: 12px; opacity: 0.5;"></div>
             </div>
         `;
     }
@@ -7299,68 +7473,92 @@ function renderSummary(content, container) {
         </li>
     `}).join('');
 
+    // Build Quality Section
+    let qualityHtml = '';
+    if (content.quality_metrics) {
+        const metrics = content.quality_metrics;
+        qualityHtml = `
+            <div class="summary-eval" style="margin-bottom: 2rem; display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                <div style="background: var(--background); padding: 1rem; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Depth Grade</div>
+                    <div style="font-weight: 700; color: var(--primary);">${metrics.depth_grade || 'Silver'}</div>
+                </div>
+                <div style="background: var(--background); padding: 1rem; border-radius: 12px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--text-secondary); margin-bottom: 0.25rem;">Exam Readiness</div>
+                    <div style="font-weight: 700; color: #f59e0b;">${metrics.exam_readiness || 'N/A'}</div>
+                </div>
+                <div style="grid-column: 1 / -1; background: var(--primary-light); padding: 1rem; border-radius: 12px; border: 1px solid rgba(37, 99, 235, 0.1);">
+                    <p style="font-size: 0.85rem; color: var(--text-primary); margin: 0; line-height: 1.5;"><strong>Evaluation:</strong> ${metrics.assessment || 'Great material for a quick review session.'}</p>
+                </div>
+            </div>
+        `;
+    }
+
+    // Build Strategy Section
+    let strategyHtml = '';
+    if (content.strategic_tip) {
+        strategyHtml = `
+            <div class="summary-strategy" style="background: #fffbeb; border: 1px solid #fde68a; padding: 1.25rem; border-radius: 14px; margin-top: 1.5rem;">
+                <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                    <div style="color: #d97706; margin-top: 2px;">
+                        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path d="M12 18h.01M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div style="font-weight: 800; font-size: 0.8rem; text-transform: uppercase; color: #92400e; margin-bottom: 0.25rem;">Strategic Study Tip</div>
+                        <p style="font-size: 0.9rem; color: #92400e; margin: 0; line-height: 1.5; font-weight: 600;">${content.strategic_tip}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
     const summaryHtml = `
         <div class="ai-summary-result" style="
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.5rem;
+            border-radius: 20px;
+            padding: 1.75rem;
             position: relative;
             overflow: hidden;
             animation: fadeIn 0.4s ease-in-out;
+            box-shadow: var(--shadow-md);
         ">
             <div style="position: absolute; top: 0; right: 0; padding: 1.5rem; opacity: 0.03; pointer-events: none;">
-                <svg style="width: 5rem; height: 5rem;" fill="currentColor" viewBox="0 0 24 24">
+                <svg style="width: 6rem; height: 6rem;" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12 2L14.4 9.6H22L15.8 14.2L18.2 21.8L12 17.2L5.8 21.8L8.2 14.2L2 9.6H9.6L12 2Z"/>
                 </svg>
             </div>
             
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; cursor: pointer;" onclick="toggleSummaryCollapse(this)">
-                <h4 style="
-                    font-weight: 700;
-                    font-size: 1.1rem;
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    margin: 0;
-                    color: var(--text-primary);
-                ">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                    </svg>
-                    ${summaryTitle}
-                </h4>
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <span style="
-                        font-size: 0.65rem;
-                        text-transform: uppercase;
-                        letter-spacing: 0.1em;
-                        font-weight: 700;
-                        padding: 0.35rem 0.75rem;
-                        border-radius: 6px;
-                        background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.05));
-                        color: var(--primary);
-                        border: 1px solid rgba(37, 99, 235, 0.2);
-                    ">AI Generated</span>
+                    <div style="width: 32px; height: 32px; background: var(--primary-light); color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 18px; height: 18px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h4 style="font-weight: 800; font-size: 1.1rem; margin: 0; color: var(--text-primary); line-height: 1.2;">${summaryTitle}</h4>
+                        <span style="font-size: 0.75rem; color: var(--text-tertiary); font-weight: 600;">${content.subject_context || 'Flashly AI Summary'}</span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
                     <svg class="summary-toggle-icon" style="width: 20px; height: 20px; transition: transform 0.3s ease; color: var(--text-secondary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </div>
             </div>
             
-            <ul class="summary-content" style="
-                list-style: none;
-                padding: 0;
-                margin: 0;
-                font-size: 0.95rem;
-                line-height: 1.7;
-                max-height: 1000px;
-                overflow: hidden;
-                transition: max-height 0.4s ease, opacity 0.3s ease;
-                opacity: 1;
-            ">
-                ${listHtml}
-            </ul>
+            <div class="summary-content" style="max-height: 2000px; overflow: hidden; transition: all 0.4s ease;">
+                ${qualityHtml}
+                
+                <ul style="list-style: none; padding: 0; margin: 0;">
+                    ${listHtml}
+                </ul>
+
+                ${strategyHtml}
+            </div>
         </div>
     `;
 
@@ -7379,16 +7577,16 @@ function toggleSummaryCollapse(headerElement) {
 
     if (isCollapsed) {
         // Expand
-        summaryContent.style.maxHeight = '1000px';
+        summaryContent.style.maxHeight = '2000px';
         summaryContent.style.opacity = '1';
         toggleIcon.style.transform = 'rotate(0deg)';
-        summaryContainer.style.padding = '1.5rem';
+        summaryContainer.style.padding = '1.75rem';
     } else {
         // Collapse
         summaryContent.style.maxHeight = '0px';
         summaryContent.style.opacity = '0';
         toggleIcon.style.transform = 'rotate(-90deg)';
-        summaryContainer.style.padding = '1.5rem';
+        summaryContainer.style.padding = '1.75rem';
         summaryContainer.style.paddingBottom = '0';
     }
 }
