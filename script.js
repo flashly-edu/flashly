@@ -66,7 +66,8 @@ const state = {
     },
     sessionRatings: [], // Track ratings in current session: { cardId: string, rating: number }
     currentNote: null,
-    notes: []
+    notes: [],
+    pendingUpdates: [] // Track DB update promises for consistency
 };
 
 const DEFAULT_TAGS = [
@@ -814,7 +815,7 @@ function applyInterfaceSettings() {
 
 // --- Navigation ---
 
-document.getElementById('nav-today').addEventListener('click', () => {
+document.getElementById('nav-today').addEventListener('click', async () => {
     if (state.isGuest) {
         authMode = 'login';
         updateAuthUI();
@@ -825,6 +826,12 @@ document.getElementById('nav-today').addEventListener('click', () => {
     }
     updateNav('nav-today');
     switchView('today-view');
+
+    // Ensure we show fresh data if updates are still flying
+    if (state.pendingUpdates && state.pendingUpdates.length > 0) {
+        await Promise.allSettled(state.pendingUpdates);
+        state.pendingUpdates = [];
+    }
     loadTodayView();
 });
 
@@ -1520,107 +1527,182 @@ async function loadTodayView() {
     let difficultCount = 0;
     let easyCount = 0;
     let actualCount = 0;
+    let completedTodayCount = 0;
     const totalLimit = state.settings.dailyLimit || 50;
 
     if (myDeckIds.length > 0) {
-        // Fetch cards ONLY for these decks
+        // Get today's start (midnight)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayISO = today.toISOString();
         const nowISO = new Date().toISOString();
-        const { data: candidateCards, error: cardsError } = await sb
+
+        // Fetch ALL candidate cards to ensure accurate quota and priority handling
+        const { data: allUserCards, error: cardsError } = await sb
             .from('cards')
-            .select('id, interval_days, reviews_count, due_at')
-            .in('deck_id', myDeckIds)
-            .or(`due_at.lte.${nowISO},reviews_count.eq.0`);
+            .select('id, interval_days, reviews_count, due_at, last_reviewed')
+            .in('deck_id', myDeckIds);
 
-        if (!cardsError && candidateCards) {
+        if (!cardsError && allUserCards) {
             const now = new Date();
-            let dueQueue = candidateCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
-            let newQueue = candidateCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
 
-            dueQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
-            totalAvailable = dueQueue.length + newQueue.length;
-            actualCount = Math.min(totalAvailable, totalLimit);
+            // 1. Calculate cards already completed TODAY
+            const reviewedTodayCount = allUserCards.filter(c => {
+                if (!c.last_reviewed) return false;
+                const lastReviewDate = new Date(c.last_reviewed);
+                lastReviewDate.setHours(0, 0, 0, 0);
+                return lastReviewDate.getTime() === todayStart.getTime();
+            }).length;
 
-            let sessionCards = [];
+            // 2. Identify candidates for study (Not reviewed today)
+            // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
+            const stillDue = allUserCards.filter(c => {
+                const interval = Number(c.interval_days || 0);
+                const due = c.due_at ? new Date(c.due_at) : null;
+                const isLearning = (interval < 1 && c.reviews_count > 0);
+
+                // Include if never reviewed today
+                if (!c.last_reviewed) return true;
+                const lastReviewDate = new Date(c.last_reviewed);
+                lastReviewDate.setHours(0, 0, 0, 0);
+                const reviewedToday = lastReviewDate.getTime() === todayStart.getTime();
+
+                if (!reviewedToday) return true;
+
+                // SPECIAL CASE: Learning cards that are due again TODAY should stay in 'stillDue'
+                if (isLearning && due && due <= now) return true;
+
+                return false;
+            });
+
+            // 3. Classify and Prioritize
+            let learningQueue = stillDue.filter(c => c.reviews_count > 0 && Number(c.interval_days) < 1);
+            let reviewQueue = stillDue.filter(c => c.reviews_count > 0 && Number(c.interval_days) >= 1 && (c.due_at && new Date(c.due_at) <= now));
+            let newQueue = stillDue.filter(c => !c.reviews_count || c.reviews_count === 0);
+
+            learningQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+            reviewQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+
+            const totalDueQueue = [...learningQueue, ...reviewQueue];
+
+            // 4. Calculate Remaining Quota based on Daily Limit
+            completedTodayCount = reviewedTodayCount;
+            const remainingQuota = Math.max(0, totalLimit - completedTodayCount);
+            actualCount = remainingQuota;
+
+            let dueQueue = totalDueQueue; // For compatibility with following loops
+
+            let sessionSelection = [];
             let addedCount = 0;
+            // Preview shown in breakdown: current quota or 20 (if Study More will be used)
+            const breakdownLimit = actualCount > 0 ? actualCount : 20;
+
             for (const card of dueQueue) {
-                if (addedCount >= totalLimit) break;
-                sessionCards.push(card);
+                if (addedCount >= breakdownLimit) break;
+                sessionSelection.push(card);
                 addedCount++;
             }
             for (const card of newQueue) {
-                if (addedCount >= totalLimit) break;
-                sessionCards.push(card);
+                if (addedCount >= breakdownLimit) break;
+                sessionSelection.push(card);
                 addedCount++;
             }
 
-            sessionCards.forEach(card => {
-                const interval = Number(card.interval_days || 0);
-                const reviews = Number(card.reviews_count || 0);
-                if (reviews === 0 || interval < 1) difficultCount++;
-                else easyCount++;
-            });
-        }
-    }
+            // Calculate EXACT counts based on FULL QUEUES for accurate breakdown labels
+            difficultCount = learningQueue.length;
+            easyCount = reviewQueue.length;
+            const newCount = newQueue.length;
 
-    // UI Updates for the Daily Review Card
-    const dueCountEl = document.getElementById('today-due-count');
-    const dueLabelEl = document.getElementById('today-due-label');
-    const startBtn = document.getElementById('start-today-review-btn');
-    const actionTitle = document.querySelector('.primary-action-card h2');
-    const actionDesc = document.querySelector('.primary-action-card p');
+            // Total cards available to study today (even if past limit)
+            const totalAvailableCount = difficultCount + easyCount + newCount;
 
-    if (myDeckIds.length === 0) {
-        // No decks state
-        if (dueCountEl) dueCountEl.textContent = '0';
-        if (dueLabelEl) dueLabelEl.textContent = 'decks found';
-        if (actionTitle) actionTitle.textContent = 'Start Your Journey';
-        if (actionDesc) actionDesc.textContent = 'Explore community decks to begin learning.';
-        if (startBtn) {
-            startBtn.innerHTML = 'Explore Community';
-        }
-        document.getElementById('due-breakdown')?.classList.add('hidden');
-    } else {
-        // Has decks state
-        if (dueCountEl) dueCountEl.textContent = actualCount;
-        if (actionTitle) actionTitle.textContent = 'Daily Review';
-        if (actionDesc) actionDesc.textContent = actualCount > 0 ? 'You have cards waiting for review.' : "You're all caught up for today!";
+            // UI Updates for the Daily Review Card
+            const progressCircleNumber = document.getElementById('progress-circle-number');
+            const progressRing = document.getElementById('progress-ring');
+            const startBtn = document.getElementById('start-today-review-btn');
+            const actionTitle = document.getElementById('action-card-title');
+            const actionDesc = document.getElementById('action-card-desc');
 
-        if (startBtn) {
-            startBtn.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                </svg>
-                ${actualCount > 0 ? 'Start Session' : 'Custom Study'}
-            `;
-            startBtn.onclick = null; // Reset to default listener in script
-        }
-
-        if (dueLabelEl) {
-            if (actualCount < totalAvailable) {
-                dueLabelEl.innerHTML = `cards to study (Goal: ${totalLimit}) <span title="Total Backlog" style="font-size:0.85em; opacity:0.7; display:block; margin-top:4px;">${totalAvailable - actualCount} others waiting</span>`;
+            if (myDeckIds.length === 0) {
+                // No decks state
+                if (progressCircleNumber) progressCircleNumber.textContent = '0/' + totalLimit;
+                if (actionTitle) actionTitle.textContent = 'Start Your Journey';
+                if (actionDesc) actionDesc.textContent = 'Explore community decks to begin learning.';
+                if (startBtn) {
+                    startBtn.innerHTML = 'Explore Community';
+                }
+                document.getElementById('due-breakdown')?.classList.add('hidden');
             } else {
-                dueLabelEl.textContent = 'cards due today';
+                // Has decks state
+                // Progress circle shows completed/goal
+                if (progressCircleNumber) progressCircleNumber.textContent = completedTodayCount + '/' + totalLimit;
+
+                // Update progress ring stroke-dashoffset
+                if (progressRing) {
+                    const circumference = 2 * Math.PI * 54; // radius 54
+                    const progress = Math.min(completedTodayCount / totalLimit, 1); // 0-1
+                    const offset = circumference * (1 - progress);
+                    progressRing.style.strokeDashoffset = offset;
+
+                    // Change color based on progress (green if goal met)
+                    progressRing.style.stroke = progress >= 1 ? 'var(--success)' : 'var(--primary)';
+                }
+
+                // Status Messaging and Button logic
+                if (actualCount > 0) {
+                    if (actionTitle) actionTitle.textContent = completedTodayCount > 0 ? `On track! ${completedTodayCount} done` : 'Daily Review';
+                    if (actionDesc) actionDesc.textContent = `Keep going — ${actualCount} cards left to reach your goal.`;
+                    if (startBtn) startBtn.innerHTML = `
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                        </svg>
+                        ${completedTodayCount > 0 ? 'Continue Session' : 'Start Studying'}
+                    `;
+                } else if (stillDue.length > 0) {
+                    if (actionTitle) actionTitle.textContent = "Goal Reached!";
+                    if (actionDesc) actionDesc.textContent = `You've hit your ${totalLimit} card goal, but there are still ${stillDue.length} cards waiting.`;
+                    if (startBtn) startBtn.innerHTML = `
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        Study More
+                    `;
+                } else {
+                    if (actionTitle) actionTitle.textContent = "All Caught Up!";
+                    if (actionDesc) actionDesc.textContent = `Excellent! You've finished all your cards for today.`;
+                    if (startBtn) startBtn.innerHTML = `
+                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                        All Done
+                    `;
+                }
+
+                if (startBtn) startBtn.onclick = null;
+
+                const newEl = document.getElementById('today-new-count');
+                const difficultEl = document.getElementById('today-difficult-count');
+                const easyEl = document.getElementById('today-easy-count');
+                const breakdownEl = document.getElementById('due-breakdown');
+
+                if (newEl) newEl.textContent = newCount;
+                if (difficultEl) difficultEl.textContent = difficultCount;
+                if (easyEl) easyEl.textContent = easyCount;
+
+                // Hide if no cards at all to study
+                if (breakdownEl) breakdownEl.classList.toggle('hidden', totalAvailableCount === 0);
             }
         }
-
-        const difficultEl = document.getElementById('today-difficult-count');
-        const easyEl = document.getElementById('today-easy-count');
-        const breakdownEl = document.getElementById('due-breakdown');
-
-        if (difficultEl) difficultEl.textContent = difficultCount;
-        if (easyEl) easyEl.textContent = easyCount;
-        if (breakdownEl) breakdownEl.classList.toggle('hidden', actualCount === 0);
     }
 
-    // 3. Streak (Mock logic since we don't have daily activity log easily accessible without complex query)
-    // We can check study_logs for distinct days.
     // 3. Streak & Mastery & Retention using Study Logs
-    // We fetch a reasonable amount of recent logs to calculate these metrics.
     const { data: logs } = await sb.from('study_logs')
         .select('review_time, rating')
         .eq('user_id', state.user.id)
         .order('review_time', { ascending: false })
-        .limit(2000); // Fetch enough history for decent stats
+        .limit(2000);
 
     let streak = 0;
     let totalScore = 0;
@@ -1637,7 +1719,6 @@ async function loadTodayView() {
                 streak++;
                 checkDate.setDate(checkDate.getDate() - 1);
             } else {
-                // Check if we missed today but have yesterday (streak still active for yesterday)
                 if (streak === 0 && checkDate.toDateString() === new Date().toDateString()) {
                     checkDate.setDate(checkDate.getDate() - 1);
                     continue;
@@ -1655,11 +1736,8 @@ async function loadTodayView() {
     }
     document.getElementById('streak-count').textContent = streak;
 
-    // --- Mastery Calculation (Matches Group View Logic) ---
-    // Mastery = Average Rating % (Score / MaxPossibleScore)
-    // Max Possible Score = Reviews * 4
+    // --- Mastery Calculation ---
     const mastery = totalReviews > 0 ? Math.round((totalScore / (totalReviews * 4)) * 100) : 0;
-
     document.getElementById('mastery-percent').textContent = `${mastery}%`;
     document.getElementById('mastery-bar').style.width = `${mastery}%`;
 
@@ -1671,7 +1749,7 @@ async function loadTodayView() {
         else masteryLabel.textContent = 'Master';
     }
 
-    // --- Retention Calculation (Good+Easy / Total) ---
+    // --- Retention Calculation ---
     const retention = totalReviews > 0 ? Math.round((goodEasyCount / totalReviews) * 100) : 0;
     const retentionText = document.getElementById('retention-text');
     if (retentionText) {
@@ -1681,10 +1759,165 @@ async function loadTodayView() {
 
     drawRetentionDonut(retention);
 
-
+    // 4. Fetch and display daily AI insight
+    if (state.user && !state.isGuest) {
+        fetchDailyInsight();
+    }
 
     // 5. Load Today Sections
     loadTodaySections();
+}
+
+// Fetch and display daily AI insight
+async function fetchDailyInsight(force = false) {
+    const container = document.getElementById('daily-ai-insights-container');
+    const textEl = document.getElementById('ai-insights-text');
+    const carouselEl = document.getElementById('ai-actions-carousel');
+
+    if (!container || !state.user) return;
+
+    try {
+        // Call the AI daily coach function
+        const response = await fetch('https://grgcynxsmanqfsgkiytu.supabase.co/functions/v1/ai-daily-coach', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: state.user.id,
+                force: force
+            })
+        });
+
+        if (!response.ok) {
+            console.error('AI insight fetch failed:', response.status);
+            return;
+        }
+
+        const data = await response.json();
+        let insight = '';
+        let actions = [];
+
+        // Handle both old string format and new structured format
+        if (typeof data.insight === 'string') {
+            try {
+                // Check if the string itself is JSON (cached case)
+                const parsed = JSON.parse(data.insight);
+                insight = parsed.insight;
+                actions = parsed.actions || [];
+            } catch (e) {
+                // Regular string
+                insight = data.insight;
+                actions = data.actions || [];
+            }
+        }
+
+        if (insight) {
+            container.classList.remove('hidden');
+            if (textEl) textEl.textContent = insight;
+
+            if (carouselEl && actions && actions.length > 0) {
+                carouselEl.innerHTML = '';
+                actions.forEach(action => {
+                    const card = document.createElement('div');
+                    card.className = 'ai-action-card';
+
+                    let icon = '';
+                    switch (action.type) {
+                        case 'study_deck':
+                            icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>';
+                            break;
+                        case 'daily_review':
+                            icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.263l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>';
+                            break;
+                        case 'create_cards':
+                            icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>';
+                            break;
+                        case 'view_stats':
+                            icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" /></svg>';
+                            break;
+                        default:
+                            icon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>';
+                    }
+
+                    card.innerHTML = `
+                        <div class="ai-action-icon">${icon}</div>
+                        <div>
+                            <h4 class="ai-action-title">${escapeHtml(action.title)}</h4>
+                            <p class="ai-action-desc">${escapeHtml(action.description)}</p>
+                        </div>
+                        <div class="ai-action-footer">
+                            <span class="ai-action-btn-text">
+                                ${action.type === 'study_deck' ? 'Open Deck' : 'Get Started'}
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-xs"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                            </span>
+                        </div>
+                    `;
+
+                    card.onclick = () => handleAIAction(action);
+                    carouselEl.appendChild(card);
+                });
+            } else if (carouselEl) {
+                carouselEl.innerHTML = '';
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching daily insight:', error);
+    }
+}
+
+async function handleAIAction(action) {
+    console.log('Executing AI action:', action);
+
+    switch (action.type) {
+        case 'study_deck':
+            if (action.deck_id) {
+                // We need the full deck object or at least enough to open it
+                // Try to find it in state.decks or fetch it
+                let deck = state.decks?.find(d => d.id === action.deck_id);
+                if (!deck) {
+                    const { data } = await sb.from('decks').select('*, subjects(name)').eq('id', action.deck_id).single();
+                    deck = data;
+                }
+                if (deck) {
+                    state.lastView = 'today-view';
+                    openDeck(deck);
+                } else {
+                    showToast('Could not find that deck', 'info');
+                }
+            }
+            break;
+        case 'daily_review':
+            document.getElementById('start-today-review-btn')?.click();
+            break;
+        case 'create_cards':
+            if (action.deck_id) {
+                let deck = state.decks?.find(d => d.id === action.deck_id);
+                if (!deck) {
+                    const { data } = await sb.from('decks').select('*').eq('id', action.deck_id).single();
+                    deck = data;
+                }
+                if (deck) {
+                    state.lastView = 'today-view';
+                    openDeck(deck);
+                    // Open the add card modal if possible
+                    document.getElementById('add-card-btn')?.click();
+                }
+            } else {
+                updateNav('nav-decks');
+                switchView('decks-view');
+                loadDecksView();
+            }
+            break;
+        case 'view_stats':
+            updateNav('nav-insights');
+            switchView('insights-view');
+            loadStats();
+            break;
+        default:
+            console.warn('Unknown action type:', action.type);
+    }
 }
 
 async function loadTodaySections() {
@@ -1957,17 +2190,25 @@ function getSubjectColor(name) {
 }
 
 document.getElementById('start-today-review-btn').addEventListener('click', () => {
-    // If no decks, redirect to community
     const btn = document.getElementById('start-today-review-btn');
-    if (btn && btn.textContent.includes('Explore')) {
+    if (!btn) return;
+
+    // Handle "Explore Community" case
+    if (btn.textContent.includes('Explore')) {
         updateNav('nav-community');
         switchView('community-view');
         loadCommunityDecks();
         return;
     }
 
-    // Start session with all due cards
-    state.studySessionConfig = { type: 'standard' };
+    // Determine if this is a "Study More" session (limit bypass)
+    // The button text is set in loadTodayView
+    const isStudyMore = btn.textContent.includes('Study More');
+
+    state.studySessionConfig = {
+        type: 'standard',
+        isStudyMore: isStudyMore
+    };
     startStudySession();
 });
 
@@ -2048,7 +2289,7 @@ async function loadDecksView(force = false) {
     const now = new Date();
     if (cards) {
         cards.forEach(card => {
-            if (!stats[card.deck_id]) stats[card.deck_id] = { total: 0, due: 0, new: 0, learn: 0, review: 0, mature: 0 };
+            if (!stats[card.deck_id]) stats[card.deck_id] = { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 };
             stats[card.deck_id].total++;
             const due = card.due_at ? new Date(card.due_at) : null;
             const interval = Number(card.interval_days || 0);
@@ -2058,15 +2299,15 @@ async function loadDecksView(force = false) {
                 if (reviews === 0) { stats[card.deck_id].new++; }
                 else {
                     stats[card.deck_id].due++;
-                    if (interval < 1) stats[card.deck_id].learn++;
-                    else stats[card.deck_id].review++;
+                    if (interval < 1) stats[card.deck_id].difficult++;
+                    else stats[card.deck_id].easy++;
                 }
             }
             if (cardMastery.has(card.id)) stats[card.deck_id].mature++;
         });
     }
 
-    state.decks = state.decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, learn: 0, review: 0, mature: 0 } }));
+    state.decks = state.decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 } }));
 
     // 4. Fetch Subjects
     const { data: subjects } = await sb.from('subjects')
@@ -2250,11 +2491,11 @@ function renderDeckRow(deck, container) {
             </div>
         </div>
         <div class="deck-status" style="white-space: nowrap;">
-            ${(stats.due > 0 || stats.new > 0 || stats.learn > 0) ? `
+            ${(stats.due > 0 || stats.new > 0 || stats.difficult > 0) ? `
                 <div style="display:inline-flex; gap:6px; font-weight:600; font-size: 0.85rem; background: var(--surface-hover); padding: 4px 8px; border-radius: 6px;">
                     <span style="color:#3b82f6;" title="New">${stats.new || 0}</span>
-                    <span style="color:#ef4444;" title="Learning">${stats.learn || 0}</span>
-                    <span style="color:#22c55e;" title="Review">${stats.review || 0}</span>
+                    <span style="color:#ef4444;" title="Difficult">${stats.difficult || 0}</span>
+                    <span style="color:#22c55e;" title="Easy">${stats.easy || 0}</span>
                 </div>
             ` : `<span class="badge badge-success">Done</span>`}
         </div>
@@ -2802,7 +3043,7 @@ async function openDeck(deck) {
         const dInState = state.decks.find(d => d.id === deck.id);
         if (dInState && dInState.stats && dInState.stats.total > 0) stats = dInState.stats;
     }
-    if (!stats) stats = { total: 0, due: 0, new: 0, mature: 0, learn: 0, review: 0 };
+    if (!stats) stats = { total: 0, due: 0, new: 0, mature: 0, difficult: 0, easy: 0 };
 
     // PROACTIVE REFRESH for owned decks or if stats look stale/missing
     if (isOwner) {
@@ -2865,8 +3106,8 @@ async function openDeck(deck) {
 
     const diffEl = document.getElementById('deck-difficult-count');
     if (diffEl) {
-        diffEl.textContent = stats.learn || 0;
-        if (state.isGuest || stats.learn > 0) {
+        diffEl.textContent = stats.difficult || 0;
+        if (state.isGuest || stats.difficult > 0) {
             diffEl.parentElement.style.cursor = 'pointer';
             diffEl.parentElement.onclick = () => {
                 if (state.isGuest) {
@@ -2884,8 +3125,8 @@ async function openDeck(deck) {
 
     const easyEl = document.getElementById('deck-easy-count');
     if (easyEl) {
-        easyEl.textContent = stats.review || 0;
-        if (state.isGuest || stats.review > 0) {
+        easyEl.textContent = stats.easy || 0;
+        if (state.isGuest || stats.easy > 0) {
             easyEl.parentElement.style.cursor = 'pointer';
             easyEl.parentElement.onclick = () => {
                 if (state.isGuest) {
@@ -3674,8 +3915,9 @@ async function getMyDeckIds() {
     if (sharedDeckIds.length > 0) conditions.push(`id.in.(${sharedDeckIds.join(',')})`);
     if (myGroupIds.length > 0) conditions.push(`group_id.in.(${myGroupIds.join(',')})`);
 
-    const { data: decks } = await sb.from('decks').select('id').or(conditions.join(','));
-    return decks ? decks.map(d => d.id) : [];
+    const { data: decks } = await sb.from('decks').select('*').or(conditions.join(','));
+    state.decks = decks || [];
+    return state.decks.map(d => d.id);
 }
 
 async function startStudySession(restart = false) {
@@ -3711,16 +3953,14 @@ async function startStudySession(restart = false) {
     } else {
         const deckIds = await getMyDeckIds();
         if (deckIds.length > 0) {
+            const nowISO = new Date().toISOString();
             const { data } = await sb.from('cards')
                 .select(`*, card_tags(tag_id)`)
                 .in('deck_id', deckIds)
-                .order('due_at');
+                .or(`due_at.lte.${nowISO},reviews_count.eq.0,interval_days.lt.1`)
+                .order('due_at')
+                .limit(200); // Optimization: Don't fetch entire library for a daily review
             if (data) allCards = data;
-        }
-
-        if (state.studySessionConfig && state.studySessionConfig.type === 'standard') {
-            const now = new Date();
-            allCards = allCards.filter(c => !c.due_at || new Date(c.due_at) <= now || c.interval_days === 0);
         }
     }
 
@@ -3754,49 +3994,72 @@ async function startStudySession(restart = false) {
         }
     } else {
         const now = new Date();
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
 
-        // Separate Valid Due and New Cards
-        // Due: Reviews > 0 AND (due_at <= now OR in learning/relearning)
-        let totalDueList = allCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
+        // 1. Calculate cards already completed TODAY (needed for correct daily limit enforcement)
+        const completedToday = allCards.filter(c => {
+            if (!c.last_reviewed) return false;
+            const lastReviewDate = new Date(c.last_reviewed);
+            lastReviewDate.setHours(0, 0, 0, 0);
+            return lastReviewDate.getTime() === todayStart.getTime();
+        }).length;
 
-        // New: Reviews == 0
-        let totalNewList = allCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+        // 2. Identify candidates for study (Exclude cards reviewed today)
+        const candidates = allCards.filter(c => {
+            if (!c.last_reviewed) return true;
+            const lastReviewDate = new Date(c.last_reviewed);
+            lastReviewDate.setHours(0, 0, 0, 0);
+            return lastReviewDate.getTime() !== todayStart.getTime();
+        });
 
-        // Sort Due: Overdue first
-        totalDueList.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+        // 3. Separate Categories
+        let learningList = candidates.filter(c => c.reviews_count > 0 && Number(c.interval_days) < 1);
+        let reviewList = candidates.filter(c => c.reviews_count > 0 && Number(c.interval_days) >= 1 && (c.due_at && new Date(c.due_at) <= now));
+        let newList = candidates.filter(c => !c.reviews_count || c.reviews_count === 0);
 
-        // --- Limits Logic ---
-        // Daily Limit acts as a TOTAL session cap for today
-        const totalLimit = state.settings.dailyLimit || 50;
+        // Sort Due: Learning first, then Due Review
+        learningList.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+        reviewList.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
-        // We prioritize Due cards (standard SRS), then fill remainder with New cards
-        // But we want to interleave IF we have both.
-        // So we select the candidates first.
+        const totalDueList = [...learningList, ...reviewList];
 
-        // 1. Take Due Cards (up to limit)
-        let selectedDue = totalDueList.slice(0, totalLimit);
+        // 4. Limits Logic
+        const dailyLimit = state.settings.dailyLimit || 50;
 
-        // 2. Remaining slots for New Cards
-        let remainingSlots = totalLimit - selectedDue.length;
-        let selectedNew = [];
-        if (remainingSlots > 0) {
-            selectedNew = totalNewList.slice(0, remainingSlots);
+        // If "Study More" is requested, we ignore the daily completion and grant a fresh batch of 20
+        let remainingQuota = Math.max(0, dailyLimit - completedToday);
+        if (config.isStudyMore) {
+            remainingQuota = 20; // Fresh batch for extra study
+        }
+
+        // SMART MIX: Always try to show a mix of New cards and Due cards
+        // Strategy: Dedicate up to 25% of quota to New cards if available, prioritizing Due for the rest.
+        const newTargetLimit = config.isStudyMore ? 10 : Math.max(5, Math.ceil(remainingQuota * 0.25));
+
+        let selectedNew = newList.slice(0, newTargetLimit);
+        let remainingForDue = Math.max(0, remainingQuota - selectedNew.length);
+        let selectedDue = totalDueList.slice(0, remainingForDue);
+
+        // Final check: if we have extra quota because we ran out of new cards, fill with more due
+        if (selectedDue.length + selectedNew.length < remainingQuota) {
+            const extraSlots = remainingQuota - (selectedDue.length + selectedNew.length);
+            const extraDue = totalDueList.slice(selectedDue.length, selectedDue.length + extraSlots);
+            selectedDue = [...selectedDue, ...extraDue];
         }
 
         // --- Interleaving Logic ---
-        // Create a mixed queue from the selected cards
-        // Strategy: 1 New card every 4 Reviews (or balance based on ratio)
-
+        // Strategy: Mix Reviews and New cards to keep it engaging
         queue = [];
         let dIndex = 0;
         let nIndex = 0;
 
         while (dIndex < selectedDue.length || nIndex < selectedNew.length) {
-            // Add up to 4 Reviews
+            // Add up to 4 Due/Learning cards
             for (let i = 0; i < 4 && dIndex < selectedDue.length; i++) {
                 queue.push(selectedDue[dIndex++]);
             }
-            // Add 1 New Card
+            // Interleave 1 New Card
             if (nIndex < selectedNew.length) {
                 queue.push(selectedNew[nIndex++]);
             }
@@ -3804,7 +4067,11 @@ async function startStudySession(restart = false) {
     }
 
     if (queue.length === 0) {
-        showToast('No cards match your study criteria!', 'success');
+        if (config.isStudyMore) {
+            showToast('You are truly all caught up for today!', 'success');
+        } else {
+            showToast('No cards match your study criteria!', 'info');
+        }
         return;
     }
 
@@ -3994,8 +4261,8 @@ if (questionsBtn) {
 
 function determineCardType(card) {
     if (!card.reviews_count || card.reviews_count === 0) return 'new';
-    if (card.interval_days < 1) return 'learn';
-    return 'review';
+    if (card.interval_days < 1) return 'difficult';
+    return 'easy';
 }
 
 function updateStudyStats() {
@@ -4004,24 +4271,24 @@ function updateStudyStats() {
     // So we count from currentCardIndex to end.
 
     let newCount = 0;
-    let learnCount = 0;
-    let reviewCount = 0;
+    let difficultCount = 0;
+    let easyCount = 0;
 
     for (let i = state.currentCardIndex; i < state.studyQueue.length; i++) {
         const card = state.studyQueue[i];
         const type = determineCardType(card);
         if (type === 'new') newCount++;
-        else if (type === 'learn') learnCount++;
-        else reviewCount++;
+        else if (type === 'difficult') difficultCount++;
+        else easyCount++;
     }
 
     const newEl = document.getElementById('study-count-new');
-    const learnEl = document.getElementById('study-count-learn');
-    const reviewEl = document.getElementById('study-count-review');
+    const difficultEl = document.getElementById('study-count-difficult');
+    const easyEl = document.getElementById('study-count-easy');
 
     if (newEl) { newEl.textContent = newCount; newEl.classList.toggle('hidden', newCount === 0); }
-    if (learnEl) { learnEl.textContent = learnCount; learnEl.classList.toggle('hidden', learnCount === 0); }
-    if (reviewEl) { reviewEl.textContent = reviewCount; reviewEl.classList.toggle('hidden', reviewCount === 0); }
+    if (difficultEl) { difficultEl.textContent = difficultCount; difficultEl.classList.toggle('hidden', difficultCount === 0); }
+    if (easyEl) { easyEl.textContent = easyCount; easyEl.classList.toggle('hidden', easyCount === 0); }
 }
 
 // --- Advanced SRS Logic (Anki-like) ---
@@ -4032,8 +4299,8 @@ const EASY_INTERVAL = 4; // 4 days
 
 function getCardState(card) {
     if (!card.reviews_count || card.reviews_count === 0) return 'new';
-    if (card.interval_days < 1) return 'learning';
-    return 'review';
+    if (card.interval_days < 1) return 'difficult';
+    return 'easy';
 }
 
 function calculateNextReview(card, rating) {
@@ -4041,8 +4308,8 @@ function calculateNextReview(card, rating) {
     let ease = Number(card.ease_factor) || 2.5;
     const state = getCardState(card);
 
-    // Learning Phase (New or Lapsed)
-    if (state === 'new' || state === 'learning') {
+    // Difficult Phase (New or Recently Failed)
+    if (state === 'new' || state === 'difficult') {
         let stepIndex = 0;
         if (interval >= LEARNING_STEPS[0]) stepIndex = 1; // Approx check for step
 
@@ -4051,7 +4318,9 @@ function calculateNextReview(card, rating) {
         } else if (rating === 2) { // Hard
             interval = (interval + LEARNING_STEPS[0]) / 2; // Avg current + 1m
         } else if (rating === 3) { // Good
-            if (stepIndex < LEARNING_STEPS.length - 1) {
+            if (state === 'new') {
+                interval = GRADUATING_INTERVAL; // Graduate immediately on first 'Good'
+            } else if (stepIndex < LEARNING_STEPS.length - 1) {
                 interval = LEARNING_STEPS[stepIndex + 1]; // Next step (10m)
             } else {
                 interval = GRADUATING_INTERVAL; // Graduate to 1 day
@@ -4060,10 +4329,10 @@ function calculateNextReview(card, rating) {
             interval = EASY_INTERVAL; // Graduate to 4 days
         }
     }
-    // Review Phase
+    // Easy Phase
     else {
         if (rating === 1) { // Again (Lapse)
-            interval = LEARNING_STEPS[0]; // Re-enter learning at 1 min
+            interval = LEARNING_STEPS[0]; // Re-enter difficult at 1 min
             ease = Math.max(1.3, ease - 0.2);
         } else if (rating === 2) { // Hard
             interval = interval * 1.2;
@@ -4144,18 +4413,11 @@ async function showNextCard(animate = true) {
         backEl.innerHTML = renderContent(card.back);
         renderMath(frontEl);
         renderMath(backEl);
-        if (animate) {
-            flashcard.style.opacity = '1';
-        }
+        if (flashcard) flashcard.style.opacity = '1';
         state.isTransitioning = false;
     };
 
-    if (animate) {
-        flashcard.style.opacity = '0';
-        setTimeout(updateContent, 200);
-    } else {
-        updateContent();
-    }
+    updateContent();
 }
 
 async function rateCard(rating) {
@@ -4167,13 +4429,15 @@ async function rateCard(rating) {
 
     // Log study event
     if (state.user) {
-        sb.from('study_logs').insert([{
+        const logPromise = sb.from('study_logs').insert([{
             user_id: state.user.id,
             card_id: card.id,
             deck_id: card.deck_id,
             rating: rating,
             review_time: new Date()
-        }]).then(({ error }) => { if (error) console.error("Log error:", error); });
+        }]);
+        state.pendingUpdates.push(logPromise);
+        logPromise.then(({ error }) => { if (error) console.error("Log error:", error); });
     }
 
     // Calculate next state
@@ -4202,15 +4466,17 @@ async function rateCard(rating) {
         // showToast(`Card requeued in ${formatInterval(interval)}`, 'info');
     }
 
-    // Update DB (Non-blocking)
+    // Update DB (Non-blocking but tracked)
     if (isOwner) {
-        sb.from('cards').update({
+        const updatePromise = sb.from('cards').update({
             interval_days: interval,
             ease_factor: ease,
             reviews_count: card.reviews_count,
             last_reviewed: new Date(),
             due_at: due_at
-        }).eq('id', card.id).then(({ error }) => { if (error) console.error("SRS Update Error:", error); });
+        }).eq('id', card.id);
+        state.pendingUpdates.push(updatePromise);
+        updatePromise.then(({ error }) => { if (error) console.error("SRS Update Error:", error); });
     }
 
     state.currentCardIndex++;
@@ -4222,11 +4488,11 @@ async function finishStudySession() {
 
     // Calculate Stats
     const total = state.sessionRatings.length;
-    const hardCards = state.sessionRatings.filter(r => r.rating <= 2);
-    const goodCards = state.sessionRatings.filter(r => r.rating >= 3);
-    const hard = hardCards.length;
-    const good = goodCards.length;
-    const accuracy = total > 0 ? Math.round((good / total) * 100) : 0;
+    const difficultCards = state.sessionRatings.filter(r => r.rating <= 2);
+    const easyCards = state.sessionRatings.filter(r => r.rating >= 3);
+    const difficult = difficultCards.length;
+    const easy = easyCards.length;
+    const accuracy = total > 0 ? Math.round((easy / total) * 100) : 0;
 
     // Update progress elements
     const progressBar = document.getElementById('study-progress-bar');
@@ -4234,9 +4500,80 @@ async function finishStudySession() {
     if (progressBar) progressBar.style.width = '100%';
     if (progressText) progressText.textContent = `Accuracy: ${accuracy}%`;
 
+    // Check if user has hit daily limit and has more cards available
+    const dailyLimit = state.settings.dailyLimit || 50;
+    let hasMoreCardsAvailable = false;
+    let studyMoreMessage = '';
+
+    if (total >= dailyLimit && state.studyQueue && state.currentCardIndex >= state.studyQueue.length) {
+        // Get remaining cards from all decks (excluding those already studied today)
+        const myDeckIds = await getMyDeckIds();
+        let remainingCount = 0;
+
+        if (myDeckIds.length > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayISO = today.toISOString();
+            const nowISO = new Date().toISOString();
+
+            const { data: allCards } = await sb
+                .from('cards')
+                .select('id, last_reviewed')
+                .in('deck_id', myDeckIds)
+                .or(`due_at.lte.${nowISO},reviews_count.eq.0`);
+
+            if (allCards) {
+                // Count cards not reviewed today
+                const cardsNotReviewedToday = allCards.filter(c => {
+                    if (!c.last_reviewed) return true; // New cards
+                    const lastReviewDate = new Date(c.last_reviewed);
+                    lastReviewDate.setHours(0, 0, 0, 0);
+                    return lastReviewDate.getTime() !== today.getTime();
+                });
+                remainingCount = cardsNotReviewedToday.length - total; // Subtract already studied in this session
+                hasMoreCardsAvailable = remainingCount > 0;
+
+                if (hasMoreCardsAvailable) {
+                    studyMoreMessage = `You've completed your goal of ${dailyLimit} cards today! ${remainingCount} more waiting.`;
+                }
+            }
+        }
+    }
+
     // Inject Summary HTML
     const container = document.getElementById('study-summary-body');
     if (container) {
+        const btnsHTML = `
+            <div id="summary-suggestions" style="text-align: left; margin-top: 2rem;">
+                <h4 style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">Recommended Next Steps</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${hasMoreCardsAvailable ? `
+                        <div style="background: rgba(34, 197, 94, 0.1); border-left: 4px solid var(--success); padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem;">
+                            <p style="font-size: 0.9rem; color: var(--text-secondary); margin: 0;">${studyMoreMessage}</p>
+                        </div>
+                        <button class="btn btn-primary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="continueStudyingMore()">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>
+                            Study ${Math.min(Math.ceil(remainingCount / 5) * 5, 25)} More Cards
+                        </button>
+                    ` : ''}
+                    ${difficult > 0 ? `
+                        <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem; border-color: var(--danger)30;" id="retry-hard-btn">
+                            <span style="background: var(--danger); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.75rem;"></span>
+                            Focus on Difficult Cards (${difficult})
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="exitStudyMode()">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                        </svg>
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        `;
+
         container.innerHTML = `
             <div class="summary-stats-grid">
                 <div class="stat-box">
@@ -4248,41 +4585,18 @@ async function finishStudySession() {
                     <div class="label">Accuracy</div>
                 </div>
                 <div class="stat-box">
-                    <div class="value">${hard}</div>
-                    <div class="label">Needs Work</div>
+                    <div class="value">${difficult}</div>
+                    <div class="label">Difficult</div>
                 </div>
             </div>
-            
-            <div id="summary-suggestions" style="text-align: left; margin-top: 2rem;">
-                <h4 style="font-size: 0.75rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">Recommended Next Steps</h4>
-                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                    ${hard > 0 ? `
-                        <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem; border-color: var(--danger)30;" id="retry-hard-btn">
-                            <span style="background: var(--danger); width: 8px; height: 8px; border-radius: 50%; margin-right: 0.75rem;"></span>
-                            Focus on Difficult Cards (${hard})
-                        </button>
-                    ` : ''}
-                    <button class="btn btn-primary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="startStudySession(true)">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                        </svg>
-                        Continue Daily Review
-                    </button>
-                    <button class="btn btn-secondary w-full" style="justify-content: flex-start; padding: 1rem;" onclick="switchView('decks-view')">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 1.25rem; height: 1.25rem; margin-right: 0.75rem;">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                        </svg>
-                        Back to My Decks
-                    </button>
-                </div>
-            </div>
+            ${btnsHTML}
         `;
 
         // Attach event for dynamic retry button
         const retryHardBtn = container.querySelector('#retry-hard-btn');
         if (retryHardBtn) {
             retryHardBtn.onclick = () => {
-                state.studyQueue = hardCards.map(r => r.card);
+                state.studyQueue = difficultCards.map(r => r.card);
                 state.currentCardIndex = 0;
                 state.sessionRatings = [];
                 switchView('study-view');
@@ -4299,10 +4613,10 @@ async function finishStudySession() {
             if (masteryEl) masteryEl.textContent = totalCards > 0 ? Math.round((mastered / totalCards) * 100) + '%' : '0%';
 
             // Optional detailed progress if these elements exist
-            const learnCountEl = document.getElementById('summary-learning-count');
-            const knownCountEl = document.getElementById('summary-known-count');
-            if (learnCountEl) learnCountEl.textContent = `${learning} / ${totalCards}`;
-            if (knownCountEl) knownCountEl.textContent = `${mastered} / ${totalCards}`;
+            const difficultCountEl = document.getElementById('summary-difficult-count');
+            const easyCountEl = document.getElementById('summary-easy-count');
+            if (difficultCountEl) difficultCountEl.textContent = `${learning} / ${totalCards}`;
+            if (easyCountEl) easyCountEl.textContent = `${mastered} / ${totalCards}`;
         }
 
         // Handle Finish Button
@@ -4315,9 +4629,24 @@ async function finishStudySession() {
     }
 }
 
+// Continue studying more cards after daily limit
+async function continueStudyingMore() {
+    state.studySessionConfig = {
+        type: 'standard',
+        isStudyMore: true
+    };
+    await startStudySession();
+}
+
 async function exitStudyMode() {
     const target = state.studyOrigin || 'decks-view';
     const deckId = state.currentDeck ? state.currentDeck.id : null;
+
+    // Ensure all pending database updates are finished before refreshing views
+    if (state.pendingUpdates.length > 0) {
+        await Promise.allSettled(state.pendingUpdates);
+        state.pendingUpdates = [];
+    }
 
     if (target === 'deck-view' && state.currentDeck) {
         // 1. Immediate Navigation with current state (stale but fast)
@@ -4339,11 +4668,11 @@ async function exitStudyMode() {
 
     } else if (target === 'today-view') {
         switchView('today-view');
-        loadTodayView();
+        await loadTodayView();
         loadDecksView(true); // Background refresh
     } else {
         switchView('decks-view');
-        loadDecksView(true);
+        await loadDecksView(true);
     }
 }
 
@@ -4384,23 +4713,22 @@ async function refreshDeckStatsOnly(deckId) {
         });
     }
 
-    let stats = { total: cards.length, due: 0, new: 0, mature: 0, learn: 0, review: 0 };
+    let stats = { total: cards.length, due: 0, new: 0, mature: 0, difficult: 0, easy: 0 };
     cards.forEach(card => {
         const interval = Number(card.interval_days || 0);
         const due = card.due_at ? new Date(card.due_at) : null;
         const reviews = Number(card.reviews_count || 0);
 
-        const isDue = (interval === 0) || (due && due <= now);
-
-        if (isDue) {
-            if (reviews === 0) {
-                stats.new++;
-            } else {
-                stats.due++;
-                if (interval < 1) stats.learn++;
-                else stats.review++;
-            }
+        if (reviews === 0) {
+            stats.new++;
+        } else if (interval < 1) {
+            stats.difficult++; // Difficult
+            stats.due++;
+        } else if (due && due <= now) {
+            stats.easy++; // Easy
+            stats.due++;
         }
+
         if (cardMastery.has(card.id)) stats.mature++;
     });
 
@@ -4435,8 +4763,8 @@ async function refreshDeckStatsOnly(deckId) {
             }
         }
         if (diffEl) {
-            diffEl.textContent = stats.learn;
-            if (state.isGuest || stats.learn > 0) {
+            diffEl.textContent = stats.difficult;
+            if (state.isGuest || stats.difficult > 0) {
                 diffEl.parentElement.style.cursor = 'pointer';
                 diffEl.parentElement.onclick = () => {
                     if (state.isGuest) {
@@ -4452,8 +4780,8 @@ async function refreshDeckStatsOnly(deckId) {
             }
         }
         if (easyEl) {
-            easyEl.textContent = stats.review;
-            if (state.isGuest || stats.review > 0) {
+            easyEl.textContent = stats.easy;
+            if (state.isGuest || stats.easy > 0) {
                 easyEl.parentElement.style.cursor = 'pointer';
                 easyEl.parentElement.onclick = () => {
                     if (state.isGuest) {
@@ -5131,7 +5459,7 @@ async function loadStats() {
 
     // 1. Fetch Logs
     const { data: logs, error } = await sb.from('study_logs')
-        .select('id, rating, review_time, card_id')
+        .select('id, rating, review_time, card_id, deck_id')
         .eq('user_id', state.user.id)
         .order('review_time', { ascending: false });
 
@@ -5140,12 +5468,27 @@ async function loadStats() {
         return;
     }
 
-    // 2. Heatmap Data & Streak
+    // 2. Data Processing & Aggregation
     const dailyCounts = {};
     const datesSet = new Set();
     let totalReviews = 0;
     let goodEasyCount = 0;
-    const ratings = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    const subjectStats = {};
+    const deckPerformance = {};
+
+    // Map logs to deck titles/subjects
+    const logDeckIds = [...new Set(logs ? logs.map(l => l.deck_id).filter(Boolean) : [])];
+    const deckInfo = {};
+
+    state.decks.forEach(d => deckInfo[d.id] = d);
+
+    const missingDeckIds = logDeckIds.filter(id => !deckInfo[id]);
+    if (missingDeckIds.length > 0) {
+        const { data: fetchedDecks } = await sb.from('decks')
+            .select('id, title, subjects(name)')
+            .in('id', missingDeckIds);
+        if (fetchedDecks) fetchedDecks.forEach(d => deckInfo[d.id] = d);
+    }
 
     if (logs) {
         totalReviews = logs.length;
@@ -5153,14 +5496,28 @@ async function loadStats() {
             const dateStr = log.review_time.split('T')[0];
             dailyCounts[dateStr] = (dailyCounts[dateStr] || 0) + 1;
             datesSet.add(new Date(log.review_time).toDateString());
-            ratings[log.rating] = (ratings[log.rating] || 0) + 1;
             if (log.rating >= 3) goodEasyCount++;
+
+            const d = deckInfo[log.deck_id];
+            if (d) {
+                if (!deckPerformance[log.deck_id]) {
+                    deckPerformance[log.deck_id] = { title: d.title, reviews: 0, good: 0 };
+                }
+                deckPerformance[log.deck_id].reviews++;
+                if (log.rating >= 3) deckPerformance[log.deck_id].good++;
+
+                const subName = d.subjects?.name || 'General';
+                if (!subjectStats[subName]) {
+                    subjectStats[subName] = { reviews: 0, good: 0 };
+                }
+                subjectStats[subName].reviews++;
+                if (log.rating >= 3) subjectStats[subName].good++;
+            }
         });
     }
 
-    renderHeatmap(dailyCounts);
-
-    // Calculate Streak
+    // 3. Metrics Calculation
+    // Streak
     let streak = 0;
     if (datesSet.size > 0) {
         let checkDate = new Date();
@@ -5179,75 +5536,178 @@ async function loadStats() {
         }
     }
 
-    // Calculate Retention
+    // Retention Rate
     const retentionRate = totalReviews > 0 ? Math.round((goodEasyCount / totalReviews) * 100) : 0;
 
-    // Calculate Daily Average (limit to last 30 days for more relevance)
+    // Daily Average (30d)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const recentLogs = logs ? logs.filter(l => new Date(l.review_time) >= thirtyDaysAgo) : [];
-    const dailyAvg = Math.round(recentLogs.length / 30);
+    const dailyAvg = (recentLogs.length / 30).toFixed(1);
 
-    // Calculate Estimated Study Time
+    // Total Study Time (Improved Estimation)
     let totalTimeMs = 0;
     if (logs && logs.length > 1) {
         for (let i = 0; i < logs.length - 1; i++) {
             const current = new Date(logs[i].review_time);
             const next = new Date(logs[i + 1].review_time);
             const diff = Math.abs(current - next);
-            if (diff < 5 * 60 * 1000) { // If less than 5 mins apart, count it as a continuous session
+            if (diff < 5 * 60 * 1000) {
                 totalTimeMs += diff;
             } else {
-                totalTimeMs += 30 * 1000; // Assume 30s for a single isolated review
+                totalTimeMs += 25 * 1000; // Weighted estimate for isolated sessions
             }
         }
     }
     const totalHours = (totalTimeMs / (1000 * 60 * 60)).toFixed(1);
 
-    // 3. Maturity (Bar Chart)
+    // Memory Maturity
     const { data: cards, error: cardError } = await sb.from('cards')
         .select('id, interval_days, deck_id');
 
-    if (cardError) console.error("Error loading cards for maturity chart:", cardError);
-
     const maturity = { New: 0, Young: 0, Mature: 0 };
-    let masteredCount = 0;
-
-    if (cards && cards.length > 0) {
+    if (cards) {
         cards.forEach(c => {
             const val = Number(c.interval_days) || 0;
             if (val < 1) maturity.New++;
             else if (val < 21) maturity.Young++;
-            else {
-                maturity.Mature++;
-                masteredCount++;
-            }
+            else maturity.Mature++;
         });
-    } else if (logs && logs.length > 0) {
-        // Fallback for when cards query returns nothing (maybe RLS issue or no cards owned)
-        // Estimate maturity based on logs: if a card has multiple logs and last was Good/Easy
-        const lastRatings = new Map();
-        logs.forEach(l => {
-            if (!lastRatings.has(l.card_id)) lastRatings.set(l.card_id, l.rating);
-        });
-        lastRatings.forEach(r => {
-            if (r >= 3) maturity.Mature++;
-            else maturity.Young++;
-        });
-        masteredCount = maturity.Mature;
     }
 
-    // 4. Update UI
+    // 4. Update UI Elements
     document.getElementById('stats-total-reviews').textContent = totalReviews.toLocaleString();
     document.getElementById('stats-retention-rate').textContent = retentionRate + '%';
     document.getElementById('stats-streak').textContent = streak;
-    document.getElementById('stats-mastered').textContent = masteredCount.toLocaleString();
-    document.getElementById('stats-daily-avg').textContent = dailyAvg;
-    document.getElementById('stats-study-time').textContent = totalHours + 'h';
+    document.getElementById('stats-mastered').textContent = maturity.Mature.toLocaleString();
 
-    renderRetentionChart(ratings);
-    renderMaturityChart(maturity);
-    renderTimeOfDayChart(logs || []);
+    // AI & Intelligence Dashboard Elements
+    const aiDailyAvg = document.getElementById('ai-daily-avg');
+    const aiTotalHours = document.getElementById('ai-total-hours');
+    const aiPrediction = document.getElementById('ai-prediction');
+    const aiAdvice = document.getElementById('ai-insight-main-text');
+
+    if (aiDailyAvg) aiDailyAvg.textContent = dailyAvg;
+    if (aiTotalHours) aiTotalHours.textContent = totalHours + 'h';
+
+    // AI Strategy Narrative
+    if (totalReviews === 0) {
+        aiAdvice.textContent = "Welcome! Start your study session to unlock personalized learning strategy and performance insights.";
+    } else if (retentionRate < 70) {
+        aiAdvice.textContent = "Your retention is slightly below target. We recommend shorter, more frequent sessions and using the 'Review' mode for difficult cards.";
+    } else if (streak < 3) {
+        aiAdvice.textContent = "You're doing great! Try to maintain a 3-day streak to significantly boost your long-term memory retention.";
+    } else {
+        const topSubject = Object.entries(subjectStats).sort((a, b) => b[1].reviews - a[1].reviews)[0];
+        aiAdvice.textContent = `Excellent momentum! You're showing strong mastery in ${topSubject ? topSubject[0] : 'your subjects'}. Consistency is your superpower.`;
+    }
+
+    // Heatmap Best Day
+    const bestDayElement = document.getElementById('best-day-val');
+    if (bestDayElement) {
+        const counts = Object.values(dailyCounts);
+        const maxVal = counts.length > 0 ? Math.max(...counts) : 0;
+        bestDayElement.textContent = maxVal > 0 ? maxVal : '--';
+    }
+
+    // Maturity Chart Sub-counts
+    const nm = document.getElementById('mat-new-count');
+    const ny = document.getElementById('mat-young-count');
+    const nl = document.getElementById('mat-mature-count');
+    if (nm) nm.textContent = maturity.New;
+    if (ny) ny.textContent = maturity.Young;
+    if (nl) nl.textContent = maturity.Mature;
+
+    // Trigger Visualizations
+    renderHeatmap(dailyCounts);
+    renderRadarChart(subjectStats);
+    renderActivityTrend(logs || []);
+    renderMaturityRadial(maturity);
+    renderSubjectBars(subjectStats);
+    renderPerformanceInsights(deckPerformance);
+}
+
+function renderSubjectBars(subjectStats) {
+    const container = document.getElementById('subject-breakdown-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const sorted = Object.entries(subjectStats).sort((a, b) => b[1].reviews - a[1].reviews);
+
+    if (sorted.length === 0) {
+        container.innerHTML = '<p class="text-secondary text-sm">Start studying to see subject insights.</p>';
+        return;
+    }
+
+    sorted.slice(0, 5).forEach(([name, data]) => {
+        const accuracy = data.reviews > 0 ? Math.round((data.good / data.reviews) * 100) : 0;
+        const color = getSubjectColor(name);
+
+        const item = document.createElement('div');
+        item.className = 'mastery-bar-item';
+        item.innerHTML = `
+            <div class="mastery-info">
+                <span class="mastery-name">${escapeHtml(name)}</span>
+                <span class="mastery-percent">${accuracy}%</span>
+            </div>
+            <div class="mastery-track">
+                <div class="mastery-fill" style="width: ${accuracy}%; background: ${color || 'var(--primary)'}"></div>
+            </div>
+        `;
+        container.appendChild(item);
+    });
+}
+
+function renderPerformanceInsights(deckPerformance) {
+    const topContainer = document.getElementById('top-decks-container');
+    const worstContainer = document.getElementById('worst-decks-container');
+    if (!topContainer || !worstContainer) return;
+
+    topContainer.innerHTML = '';
+    worstContainer.innerHTML = '';
+
+    const decks = Object.values(deckPerformance).filter(d => d.reviews >= 3);
+    decks.forEach(d => d.accuracy = (d.good / d.reviews) * 100);
+
+    const top = [...decks].sort((a, b) => b.accuracy - a.accuracy).slice(0, 3);
+    const worst = [...decks].sort((a, b) => a.accuracy - b.accuracy).slice(0, 3);
+
+    if (top.length === 0) {
+        const msg = '<p class="text-secondary text-xs" style="font-style: italic; padding: 1rem 0;">More data needed to compute performance edge.</p>';
+        topContainer.innerHTML = msg;
+        worstContainer.innerHTML = msg;
+        return;
+    }
+
+    top.forEach(deck => {
+        const div = document.createElement('div');
+        div.style.padding = '0.75rem';
+        div.style.background = '#f0fdf4';
+        div.style.borderRadius = '0.75rem';
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        div.innerHTML = `
+            <span style="font-weight: 600; font-size: 0.85rem; color: #166534;">${escapeHtml(deck.title)}</span>
+            <span style="font-weight: 800; color: #15803d; font-size: 0.9rem;">${Math.round(deck.accuracy)}%</span>
+        `;
+        topContainer.appendChild(div);
+    });
+
+    worst.forEach(deck => {
+        const div = document.createElement('div');
+        div.style.padding = '0.75rem';
+        div.style.background = '#fef2f2';
+        div.style.borderRadius = '0.75rem';
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        div.innerHTML = `
+            <span style="font-weight: 600; font-size: 0.85rem; color: #991b1b;">${escapeHtml(deck.title)}</span>
+            <span style="font-weight: 800; color: #b91c1c; font-size: 0.9rem;">${Math.round(deck.accuracy)}%</span>
+        `;
+        worstContainer.appendChild(div);
+    });
 }
 
 function renderTimeOfDayChart(logs) {
@@ -5306,9 +5766,9 @@ function renderTimeOfDayChart(logs) {
 let charts = {};
 
 function renderHeatmap(data = {}) {
-    const ctx = document.getElementById('calendar-heatmap');
-    ctx.innerHTML = '<canvas id="heatmap-canvas"></canvas>';
-    const canvas = document.getElementById('heatmap-canvas');
+    const container = document.getElementById('calendar-heatmap');
+    if (!container) return;
+    container.innerHTML = '';
 
     const last30Days = [];
     const now = new Date();
@@ -5316,35 +5776,49 @@ function renderHeatmap(data = {}) {
         const d = new Date();
         d.setDate(now.getDate() - i);
         const iso = d.toISOString().split('T')[0];
-        last30Days.push({ date: iso, val: data[iso] || 0 });
+        last30Days.push({ date: d, iso: iso, val: data[iso] || 0 });
     }
 
-    if (charts.heatmap) charts.heatmap.destroy();
-    charts.heatmap = new Chart(canvas, {
-        type: 'bar',
-        data: {
-            labels: last30Days.map(d => {
-                const date = new Date(d.date);
-                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            }),
-            datasets: [{
-                label: 'Cards Reviewed',
-                data: last30Days.map(d => d.val),
-                backgroundColor: 'rgba(37, 99, 235, 0.7)',
-                borderRadius: 4,
-                hoverBackgroundColor: '#2563eb'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
-                x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }
-            }
-        }
-    });
+    if (last30Days.every(d => d.val === 0)) {
+        container.innerHTML = `
+            <div style="height: 100%; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 0.8rem; background: #f8fafc; border-radius: 12px; border: 1px dashed var(--border);">
+                 Start studying to see your activity rhythm here.
+            </div>
+        `;
+        return;
+    }
+
+    const width = container.offsetWidth,
+        height = container.offsetHeight;
+
+    const svg = d3.select("#calendar-heatmap").append("svg")
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .attr("viewBox", `0 0 ${width} ${height}`)
+        .append("g");
+
+    const columns = 10;
+    const rows = 3;
+    const gap = 6;
+    const cellSize = Math.min((width - (columns - 1) * gap) / columns, (height - (rows - 1) * gap) / rows);
+
+    const colorScale = d3.scaleThreshold()
+        .domain([1, 10, 25, 50])
+        .range(["#f1f5f9", "#dbeafe", "#93c5fd", "#3b82f6", "#1d4ed8"]);
+
+    svg.selectAll(".day")
+        .data(last30Days)
+        .enter().append("rect")
+        .attr("class", "day")
+        .attr("width", cellSize)
+        .attr("height", cellSize)
+        .attr("x", (d, i) => (i % columns) * (cellSize + gap))
+        .attr("y", (d, i) => Math.floor(i / columns) * (cellSize + gap))
+        .attr("fill", d => colorScale(d.val))
+        .attr("rx", 4)
+        .style("cursor", "pointer")
+        .append("title")
+        .text(d => `${d.date.toLocaleDateString()}: ${d.val} reviews`);
 }
 
 function renderRetentionChart(ratings) {
@@ -7576,34 +8050,287 @@ function toggleSummaryCollapse(headerElement) {
     }
 }
 
-function renderSkeletonSummary(container) {
+
+// --- D3.js Visualisations ---
+
+function renderRadarChart(subjectStats) {
+    const container = document.getElementById('subject-radar-chart');
     if (!container) return;
-    container.classList.remove('hidden');
-    container.innerHTML = `
-        <div class="ai-summary-result" style="
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            position: relative;
-            overflow: hidden;
-        ">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
-                </svg>
-                <span style="font-weight: 600; color: var(--text-secondary);">Summarising...</span>
+    container.innerHTML = '';
+
+    const data = Object.entries(subjectStats).map(([name, stats]) => ({
+        axis: name,
+        value: stats.good / (stats.reviews || 1)
+    }));
+
+    if (data.length < 3) {
+        container.innerHTML = `
+            <div class="chart-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; color: var(--text-secondary);">
+                <span style="font-size: 2rem; margin-bottom: 1rem;">📊</span>
+                <p>Study at least 3 subjects to generate your strength profile.</p>
             </div>
-            
-            <div class="skeleton-shimmer"></div>
-            
-            <div style="display: flex; flex-direction: column; gap: 1rem;">
-                <div class="skeleton-text title gradient-text-anim"></div>
-                <div class="skeleton-text desc gradient-text-anim" style="width: 100%;"></div>
-                <div class="skeleton-text desc gradient-text-anim" style="width: 95%;"></div>
-                <div class="skeleton-text desc gradient-text-anim" style="width: 90%;"></div>
-            </div>
-             <p class="text-xs text-dim mt-4">Generating smart insights from your note...</p>
-        </div>
-    `;
+        `;
+        return;
+    }
+
+    // Increased margins to prevent label cropping
+    const margin = { top: 70, right: 70, bottom: 70, left: 70 },
+        width = container.offsetWidth - margin.left - margin.right,
+        height = container.offsetHeight - margin.top - margin.bottom;
+
+    const angleSlice = (Math.PI * 2) / data.length;
+    const rScale = d3.scaleLinear()
+        .range([0, Math.min(width, height) / 2])
+        .domain([0, 1]);
+
+    const svg = d3.select("#subject-radar-chart").append("svg")
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+        .append("g")
+        .attr("transform", `translate(${(width / 2) + margin.left}, ${(height / 2) + margin.top})`);
+
+    // Draw background circles
+    const levels = 5;
+    for (let j = 0; j < levels; j++) {
+        const r = rScale((j + 1) / levels);
+        svg.append("circle")
+            .attr("r", r)
+            .style("fill", "#f8fafc")
+            .style("stroke", "#e2e8f0")
+            .style("stroke-dasharray", "2,2");
+    }
+
+    // Draw axes
+    const axis = svg.selectAll(".axis")
+        .data(data)
+        .enter().append("g")
+        .attr("class", "axis");
+
+    axis.append("line")
+        .attr("x1", 0).attr("y1", 0)
+        .attr("x2", (d, i) => rScale(1) * Math.cos(angleSlice * i - Math.PI / 2))
+        .attr("y2", (d, i) => rScale(1) * Math.sin(angleSlice * i - Math.PI / 2))
+        .style("stroke", "#e2e8f0").style("stroke-width", "1px");
+
+    // Labels with better positioning
+    axis.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "0.35em")
+        .attr("x", (d, i) => rScale(1.2) * Math.cos(angleSlice * i - Math.PI / 2))
+        .attr("y", (d, i) => rScale(1.2) * Math.sin(angleSlice * i - Math.PI / 2))
+        .text(d => d.axis)
+        .style("font-size", "11px")
+        .style("font-weight", "700")
+        .style("fill", "#64748b");
+
+    // Draw Radar area
+    svg.append("path")
+        .datum(data)
+        .attr("d", d3.lineRadial()
+            .radius(d => rScale(d.value))
+            .angle((d, i) => i * angleSlice)
+            .curve(d3.curveCardinalClosed)
+        )
+        .style("fill", "rgba(37, 99, 235, 0.15)")
+        .style("stroke", "var(--primary)")
+        .style("stroke-width", "3px")
+        .style("filter", "drop-shadow(0 4px 12px rgba(37, 99, 235, 0.2))");
+
+    // Points
+    svg.selectAll(".radarPoint")
+        .data(data)
+        .enter().append("circle")
+        .attr("r", 4)
+        .attr("cx", (d, i) => rScale(d.value) * Math.cos(angleSlice * i - Math.PI / 2))
+        .attr("cy", (d, i) => rScale(d.value) * Math.sin(angleSlice * i - Math.PI / 2))
+        .style("fill", "white")
+        .style("stroke", "var(--primary)")
+        .style("stroke-width", "2px");
+}
+
+function renderActivityTrend(logs) {
+    const container = document.getElementById('activity-trend-chart');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const now = new Date();
+    const days = [];
+    for (let i = 13; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(now.getDate() - i);
+        days.push(d.toISOString().split('T')[0]);
+    }
+
+    const counts = {};
+    logs.forEach(l => {
+        const ds = l.review_time.split('T')[0];
+        counts[ds] = (counts[ds] || 0) + 1;
+    });
+
+    const data = days.map(ds => ({
+        date: ds,
+        value: counts[ds] || 0,
+        label: new Date(ds).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    }));
+
+    const margin = { top: 20, right: 30, bottom: 30, left: 30 },
+        width = container.offsetWidth - margin.left - margin.right,
+        height = container.offsetHeight - margin.top - margin.bottom;
+
+    const x = d3.scalePoint().domain(days).range([0, width]);
+    const maxVal = d3.max(data, d => d.value) || 10;
+    const y = d3.scaleLinear().domain([0, maxVal * 1.2]).range([height, 0]);
+
+    const svg = d3.select("#activity-trend-chart").append("svg")
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+        .append("g")
+        .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+    // Add Axes
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x).tickValues([days[0], days[6], days[13]]).tickFormat(d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })))
+        .style("color", "#94a3b8")
+        .select(".domain").remove();
+
+    svg.append("g")
+        .call(d3.axisLeft(y).ticks(3))
+        .style("color", "#94a3b8")
+        .select(".domain").remove();
+
+    // Gradient
+    const gradient = svg.append("defs").append("linearGradient")
+        .attr("id", "trend-gradient")
+        .attr("x1", "0%").attr("y1", "0%")
+        .attr("x2", "0%").attr("y2", "100%");
+    gradient.append("stop").attr("offset", "0%").attr("stop-color", "rgba(37, 99, 235, 0.4)");
+    gradient.append("stop").attr("offset", "100%").attr("stop-color", "rgba(37, 99, 235, 0)");
+
+    // Area
+    const area = d3.area()
+        .x(d => x(d.date))
+        .y0(height)
+        .y1(d => y(d.value))
+        .curve(d3.curveMonotoneX);
+
+    svg.append("path")
+        .datum(data)
+        .attr("fill", "url(#trend-gradient)")
+        .attr("d", area);
+
+    // Line
+    const line = d3.line()
+        .x(d => x(d.date))
+        .y(d => y(d.value))
+        .curve(d3.curveMonotoneX);
+
+    svg.append("path")
+        .datum(data)
+        .attr("fill", "none")
+        .attr("stroke", "var(--primary)")
+        .attr("stroke-width", 3)
+        .attr("d", line);
+
+    // Interaction Layer
+    const focus = svg.append("g").style("display", "none");
+    focus.append("line").attr("class", "x-hover-line").attr("y1", 0).attr("y2", height).style("stroke", "#94a3b8").style("stroke-dasharray", "3,3");
+    focus.append("circle").attr("r", 5).style("fill", "var(--primary)").style("stroke", "white").style("stroke-width", "2px");
+
+    let tooltip = d3.select(".chart-tooltip");
+    if (tooltip.empty()) {
+        tooltip = d3.select("body").append("div")
+            .attr("class", "chart-tooltip")
+            .style("position", "absolute")
+            .style("background", "rgba(30, 41, 59, 0.9)")
+            .style("color", "white")
+            .style("padding", "6px 12px")
+            .style("border-radius", "8px")
+            .style("font-size", "0.75rem")
+            .style("pointer-events", "none")
+            .style("display", "none")
+            .style("z-index", "1000");
+    }
+
+    svg.append("rect")
+        .attr("width", width)
+        .attr("height", height)
+        .style("fill", "none")
+        .style("pointer-events", "all")
+        .on("mouseover", () => { focus.style("display", null); tooltip.style("display", "block"); })
+        .on("mouseout", () => { focus.style("display", "none"); tooltip.style("display", "none"); })
+        .on("mousemove", function (event) {
+            const [mouseX] = d3.pointer(event);
+            const eachBand = width / (days.length - 1);
+            const index = Math.round(mouseX / eachBand);
+            const d = data[index];
+            if (d) {
+                focus.attr("transform", `translate(${x(d.date)},0)`);
+                focus.select("circle").attr("cy", y(d.value));
+                tooltip
+                    .html(`<strong>${d.label}</strong><br/>${d.value} reviews`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+            }
+        });
+}
+
+function renderMaturityRadial(maturity) {
+    const container = document.getElementById('maturity-distribution-d3');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const data = [
+        { label: 'New', value: maturity.New, color: '#94a3b8' },
+        { label: 'Young', value: maturity.Young, color: 'var(--primary)' },
+        { label: 'Mature', value: maturity.Mature, color: 'var(--success)' }
+    ].filter(d => d.value > 0);
+
+    if (data.length === 0) return;
+
+    const width = container.offsetWidth,
+        height = container.offsetHeight,
+        radius = Math.min(width, height) / 2;
+
+    const svg = d3.select("#maturity-distribution-d3").append("svg")
+        .attr("width", width)
+        .attr("height", height)
+        .append("g")
+        .attr("transform", `translate(${width / 2}, ${height / 2})`);
+
+    const pie = d3.pie().value(d => d.value).sort(null);
+    const arc = d3.arc().innerRadius(radius * 0.6).outerRadius(radius * 0.9).cornerRadius(8);
+
+    const arcs = svg.selectAll(".arc")
+        .data(pie(data))
+        .enter().append("g");
+
+    arcs.append("path")
+        .attr("d", arc)
+        .attr("fill", d => d.data.color)
+        .style("stroke", "white")
+        .style("stroke-width", "4px")
+        .transition().duration(1000)
+        .attrTween("d", function (d) {
+            const i = d3.interpolate({ startAngle: 0, endAngle: 0 }, d);
+            return t => arc(i(t));
+        });
+
+    // Middle text
+    const total = d3.sum(data, d => d.value);
+    svg.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "-0.2em")
+        .style("font-size", "1.25rem")
+        .style("font-weight", "800")
+        .text(total);
+    svg.append("text")
+        .attr("text-anchor", "middle")
+        .attr("dy", "1.2em")
+        .style("font-size", "0.65rem")
+        .style("text-transform", "uppercase")
+        .style("fill", "#64748b")
+        .text("Total Cards");
 }

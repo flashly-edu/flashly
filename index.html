@@ -52,6 +52,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7" defer></script>
     <link rel="icon" type="image/png" href="./Assets/logo.png">
 
     <!-- JSON-LD Structured Data -->
@@ -212,9 +213,9 @@
                 <div class="section-content-wrapper">
                     <div class="landing-text-block">
                         <h1>Exams are coming. <span>Your flashcards and notes are here.</span></h1>
-                        <p>Over 15,000 free flashcards and summary notes for O-Level, A-Level, and IB students in
-                            Singapore. Curated
-                            by students, for students.</p>
+                        <p>Over 15,000 free flashcards and notes, supercharged by <strong>personal AI coaching</strong>.
+                            Master your subjects with the ultimate Spaced Repetition System tailored for Singapore
+                            students.</p>
                         <div class="hero-btns" style="display:flex; gap:1rem; align-items: center; flex-wrap: wrap;">
                             <button class="btn btn-primary btn-lg btn-signup-toggle">Start Learning</button>
                             <button class="btn btn-secondary btn-lg" onclick="state.isGuest = true; showApp();">
@@ -299,6 +300,41 @@
                         <h2>Beat the forgetting curve.</h2>
                         <p>Our optimized Spaced Repetition System (SRS) predicts exactly when you're about to forget a
                             concept and surfaces it for review at the perfect moment.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New AI Section -->
+            <section class="landing-page-section">
+                <div class="section-content-wrapper" style="grid-template-columns: 1fr 1fr;">
+                    <div class="landing-text-block">
+                        <span class="feature-pill" style="background: #f5f3ff; color: #8b5cf6;">AI COACH</span>
+                        <h2>Your personal tutor.</h2>
+                        <p>Flashly AI analyzes your study habits and provides daily, actionable insights. Get custom
+                            game plans, motivational coaching, and smart recommendations tailored just for you.</p>
+                        <button class="btn btn-primary btn-lg btn-signup-toggle">Meet Your AI Coach</button>
+                    </div>
+                    <div class="landing-visual-block">
+                        <div class="ai-mockup" style="padding: 2rem;">
+                            <div class="card" style="margin-bottom: 1rem; border-left: 4px solid #8b5cf6;">
+                                <div class="ai-insight-badge mb-2">
+                                    <div class="ai-insight-dot"></div>
+                                    <span>AI INSIGHT</span>
+                                </div>
+                                <p class="text-sm font-medium">"You've mastered 85% of Pure Chemistry. Focus on 'Organic
+                                    Compounds' today to hit your 90% goal!"</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="ai-stat-card">
+                                    <div class="font-bold mb-1 text-xs">Study Chemistry</div>
+                                    <div class="text-secondary text-xs">Weakest deck</div>
+                                </div>
+                                <div class="ai-stat-card">
+                                    <div class="font-bold mb-1 text-xs">View Stats</div>
+                                    <div class="text-secondary text-xs">Track progress</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -551,34 +587,85 @@
 
                         <!-- Primary Action Card -->
                         <div class="primary-action-card">
-                            <div class="action-content">
-                                <h2 class="text-2xl font-semibold mb-2">Daily Review</h2>
-                                <p class="text-secondary mb-6">You have cards waiting for review.</p>
-                                <div class="action-main">
-                                    <div class="due-count-large" id="today-due-count">0</div>
-                                    <!-- Card Difficulty Breakdown - inline to the right -->
-                                    <div class="due-breakdown" id="due-breakdown">
-                                        <span class="breakdown-item difficult" title="Cards still learning">
-                                            <span class="breakdown-dot"></span>
-                                            <span id="today-difficult-count">0</span> difficult
-                                        </span>
-                                        <span class="breakdown-item easy" title="Cards ready for review">
-                                            <span class="breakdown-dot"></span>
-                                            <span id="today-easy-count">0</span> easy
-                                        </span>
+                            <div class="action-info-wrapper">
+                                <div class="action-content">
+                                    <h2 id="action-card-title">Daily Review</h2>
+                                    <p id="action-card-desc">You have cards waiting for review.</p>
+                                </div>
+                                <div class="breakdown-inline" id="due-breakdown">
+                                    <span class="breakdown-item new" title="New cards to start today">
+                                        <span class="breakdown-dot"></span>
+                                        <span id="today-new-count">0</span>
+                                        <span class="breakdown-label">New</span>
+                                    </span>
+                                    <span class="breakdown-item difficult" title="Cards currently being mastered">
+                                        <span class="breakdown-dot"></span>
+                                        <span id="today-difficult-count">0</span>
+                                        <span class="breakdown-label">Difficult</span>
+                                    </span>
+                                    <span class="breakdown-item easy" title="Successfully mastered cards">
+                                        <span class="breakdown-dot"></span>
+                                        <span id="today-easy-count">0</span>
+                                        <span class="breakdown-label">Easy</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="action-metrics-wrapper">
+                                <div class="action-stats">
+                                    <div class="progress-circle" id="daily-progress-circle">
+                                        <svg viewBox="0 0 120 120" class="progress-ring-svg">
+                                            <circle cx="60" cy="60" r="54" class="progress-ring-background"></circle>
+                                            <circle cx="60" cy="60" r="54" class="progress-ring" id="progress-ring">
+                                            </circle>
+                                        </svg>
+                                        <div class="progress-circle-content">
+                                            <div class="progress-circle-number" id="progress-circle-number">0/20</div>
+                                            <div class="progress-circle-label">today</div>
+                                        </div>
                                     </div>
                                 </div>
-                                <p class="text-sm text-secondary mt-1" id="today-due-label">cards due today</p>
+                                <div class="action-btn">
+                                    <button id="start-today-review-btn" class="btn btn-primary btn-lg">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                                        </svg>
+                                        Start Session
+                                    </button>
+                                </div>
                             </div>
-                            <div class="action-btn">
-                                <button id="start-today-review-btn" class="btn btn-primary btn-lg">
+                        </div>
+
+                        <!-- Daily AI Insights Container -->
+                        <div id="daily-ai-insights-container" class="daily-ai-insights-card hidden">
+                            <div class="flex items-start gap-3 mb-4">
+                                <div class="insight-icon-bg"
+                                    style="margin-bottom: 0; flex-shrink: 0; color: #8b5cf6; background: #f5f3ff;">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                                        stroke="currentColor" class="icon-sm">
+                                        stroke-width="2" stroke="currentColor" class="icon-sm">
                                         <path stroke-linecap="round" stroke-linejoin="round"
-                                            d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                                            d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
                                     </svg>
-                                    Start Session
-                                </button>
+                                </div>
+                                <p class="ai-insights-text" id="ai-insights-text">Loading your personalized insight...
+                                </p>
+                            </div>
+
+                            <!-- Actionable Cards Carousel -->
+                            <div class="ai-actions-header">
+                                <span class="ai-actions-label">Suggested Actions</span>
+                                <span class="ai-carousel-hint">Swipe for more
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2" stroke="currentColor" class="icon-xs"
+                                        style="width: 12px; height: 12px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                    </svg>
+                                </span>
+                            </div>
+                            <div id="ai-actions-carousel" class="ai-actions-carousel">
+                                <!-- Action cards will be injected here -->
                             </div>
                         </div>
 
@@ -696,58 +783,257 @@
 
                     <!-- Insights View -->
                     <section id="insights-view" class="view hidden">
-                        <div class="mb-8">
-                            <h2 class="text-2xl font-bold">Insights</h2>
-                            <p class="text-secondary">Track your learning progress over time</p>
-                        </div>
+                        <div class="insights-view-container">
+                            <div class="insights-header-minimal">
+                                <h2>Intelligence Dashboard</h2>
+                                <p>Deep analytics of your learning velocity and knowledge retention.</p>
+                            </div>
 
-                        <div class="stats-overview-grid">
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Total Reviews</span>
-                                <span class="stat-value" id="stats-total-reviews">0</span>
-                                <span class="stat-subtext">Lifetime reviews</span>
-                            </div>
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Retention Rate</span>
-                                <span class="stat-value" id="stats-retention-rate">0%</span>
-                                <span class="stat-subtext">Last 30 days</span>
-                            </div>
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Current Streak</span>
-                                <span class="stat-value" id="stats-streak">0</span>
-                                <span class="stat-subtext">Consecutive days</span>
-                            </div>
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Cards Mastered</span>
-                                <span class="stat-value" id="stats-mastered">0</span>
-                                <span class="stat-subtext">Proficient level</span>
-                            </div>
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Daily Average</span>
-                                <span class="stat-value" id="stats-daily-avg">0</span>
-                                <span class="stat-subtext">Reviews per day</span>
-                            </div>
-                            <div class="stat-card-premium">
-                                <span class="stat-label">Study Time</span>
-                                <span class="stat-value" id="stats-study-time">0h</span>
-                                <span class="stat-subtext">Estimated total</span>
-                            </div>
-                        </div>
-
-                        <div class="insights-stack">
-                            <div class="card">
-                                <h3 class="mb-4 text-lg">Activity Heatmap</h3>
-                                <div id="calendar-heatmap" style="width: 100%; height: 200px;"></div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-6 insights-grid"
-                                style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                                <div class="card">
-                                    <h3 class="mb-4 text-lg">Retention & Maturity</h3>
-                                    <div id="retention-chart"></div>
+                            <!-- AI Recommendation Banner -->
+                            <div class="ai-insights-banner-premium">
+                                <div class="ai-badge">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                        stroke-width="2" stroke="currentColor" class="icon-xs">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                                    </svg>
+                                    Insights from Flashly AI
                                 </div>
-                                <div class="card">
-                                    <h3 class="mb-4 text-lg">Card Maturity Distribution</h3>
-                                    <div id="maturity-chart"></div>
+                                <div id="ai-insight-main-text" class="ai-recommendation-text">
+                                    Analyze your data to get personalized study recommendations...
+                                </div>
+                                <div class="ai-stats-pill-group">
+                                    <div class="ai-stat-pill">
+                                        <span class="ai-stat-pill-label">Daily Average</span>
+                                        <span id="ai-daily-avg" class="ai-stat-pill-value">--</span>
+                                    </div>
+                                    <div class="ai-stat-pill">
+                                        <span class="ai-stat-pill-label">Study Time</span>
+                                        <span id="ai-total-hours" class="ai-stat-pill-value">-- hours</span>
+                                    </div>
+                                    <div class="ai-stat-pill">
+                                        <span class="ai-stat-pill-label">Prediction</span>
+                                        <span id="ai-prediction" class="ai-stat-pill-value">Steady Growth</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Top Stats Grid -->
+                            <div class="insights-grid-top">
+                                <div class="card-insight-main">
+                                    <div class="insight-icon-bg">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                                        </svg>
+                                    </div>
+                                    <div class="insight-val-group">
+                                        <span id="stats-total-reviews" class="insight-val">0</span>
+                                    </div>
+                                    <span class="insight-label">Total Reviews</span>
+                                    <div class="insight-trend trend-up">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                                            class="icon-xs">
+                                            <path fill-rule="evenodd"
+                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Lifetime
+                                    </div>
+                                </div>
+
+                                <div class="card-insight-main">
+                                    <div class="insight-icon-bg" style="color: #10b981; background: #ecfdf5;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                    </div>
+                                    <div class="insight-val-group">
+                                        <span id="stats-retention-rate" class="insight-val">0%</span>
+                                    </div>
+                                    <span class="insight-label">Retention Rate</span>
+                                    <div class="insight-trend trend-neutral">
+                                        30d Accuracy
+                                    </div>
+                                </div>
+
+                                <div class="card-insight-main">
+                                    <div class="insight-icon-bg" style="color: #f59e0b; background: #fffbeb;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+                                        </svg>
+                                    </div>
+                                    <div class="insight-val-group">
+                                        <span id="stats-streak" class="insight-val">0</span>
+                                        <span class="insight-unit">days</span>
+                                    </div>
+                                    <span class="insight-label">Current Streak</span>
+                                    <div class="insight-trend trend-up">
+                                        Active
+                                    </div>
+                                </div>
+
+                                <div class="card-insight-main">
+                                    <div class="insight-icon-bg" style="color: #6366f1; background: #eef2ff;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                            stroke="currentColor" class="icon-sm">
+                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75c1.133 0 2.19-.313 3.087-.855m-4.225 3.63a5.981 5.981 0 003.064-3.63c.346-1.174.526-2.41.526-3.693V8.443m6 4.357L12 12.75" />
+                                        </svg>
+                                    </div>
+                                    <div class="insight-val-group">
+                                        <span id="stats-mastered" class="insight-val">0</span>
+                                    </div>
+                                    <span class="insight-label">Mastered Cards</span>
+                                    <div class="insight-trend trend-neutral">
+                                        Mature Memory
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="insights-viz-grid">
+                                <!-- Main Study Rhythm -->
+                                <div class="viz-card">
+                                    <div class="viz-card-header">
+                                        <div>
+                                            <h3 class="viz-title">Study Rhythm</h3>
+                                            <span class="viz-subtitle">Activity heatmap & trend analysis</span>
+                                        </div>
+                                        <div id="activity-pulse-summary" class="text-right">
+                                            <span style="font-size: 1.125rem; font-weight: 800; color: var(--primary);"
+                                                id="best-day-val">--</span>
+                                            <div
+                                                style="font-size: 0.65rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">
+                                                Best Day</div>
+                                        </div>
+                                    </div>
+
+                                    <div id="calendar-heatmap" style="width: 100%; height: 120px; margin-bottom: 1rem;">
+                                    </div>
+
+                                    <!-- Heatmap Legend -->
+                                    <div
+                                        style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-bottom: 2rem; padding-right: 0.5rem;">
+                                        <span
+                                            style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 600;">Less</span>
+                                        <div style="display: flex; gap: 2px;">
+                                            <div
+                                                style="width: 10px; height: 10px; background: #f1f5f9; border-radius: 2px;">
+                                            </div>
+                                            <div
+                                                style="width: 10px; height: 10px; background: #dbeafe; border-radius: 2px;">
+                                            </div>
+                                            <div
+                                                style="width: 10px; height: 10px; background: #93c5fd; border-radius: 2px;">
+                                            </div>
+                                            <div
+                                                style="width: 10px; height: 10px; background: #3b82f6; border-radius: 2px;">
+                                            </div>
+                                            <div
+                                                style="width: 10px; height: 10px; background: #1d4ed8; border-radius: 2px;">
+                                            </div>
+                                        </div>
+                                        <span
+                                            style="font-size: 0.65rem; color: var(--text-secondary); font-weight: 600;">More</span>
+                                    </div>
+
+                                    <div style="position: relative;">
+                                        <h4
+                                            style="font-size: 0.7rem; font-weight: 800; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 1rem;">
+                                            14-Day Activity Trend</h4>
+                                        <div id="activity-trend-chart" style="width: 100%; height: 140px;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Memory Maturity -->
+                                <div class="viz-card">
+                                    <div class="viz-card-header">
+                                        <div>
+                                            <h3 class="viz-title">Memory Maturity</h3>
+                                            <span class="viz-subtitle">Distribution of card intervals</span>
+                                        </div>
+                                    </div>
+                                    <div id="maturity-distribution-d3" style="width: 100%; flex: 1; min-height: 220px;">
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+                                        <div style="padding: 0.75rem; background: #f8fafc; border-radius: 0.75rem;">
+                                            <div id="mat-new-count"
+                                                style="font-size: 1.125rem; font-weight: 800; color: #64748b;">0</div>
+                                            <div
+                                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">
+                                                New</div>
+                                        </div>
+                                        <div style="padding: 0.75rem; background: #f8fafc; border-radius: 0.75rem;">
+                                            <div id="mat-young-count"
+                                                style="font-size: 1.125rem; font-weight: 800; color: var(--primary);">0
+                                            </div>
+                                            <div
+                                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">
+                                                Learning</div>
+                                        </div>
+                                        <div style="padding: 0.75rem; background: #f8fafc; border-radius: 0.75rem;">
+                                            <div id="mat-mature-count"
+                                                style="font-size: 1.125rem; font-weight: 800; color: var(--success);">0
+                                            </div>
+                                            <div
+                                                style="font-size: 0.65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase;">
+                                                Mastered</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" style="display: grid; gap: 16px;">
+                                <!-- Subject Radar -->
+                                <div class="viz-card lg:col-span-1">
+                                    <div class="viz-card-header">
+                                        <h3 class="viz-title">Knowledge Map</h3>
+                                    </div>
+                                    <div id="subject-radar-chart"
+                                        style="width: 100%; height: 320px; position: relative;">
+                                        <div class="chart-empty-state"
+                                            style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 0.8rem; text-align: center; padding: 2rem;">
+                                            Study across different subjects to see your strength map.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Subject Breakdown -->
+                                <div class="viz-card lg:col-span-1">
+                                    <div class="viz-card-header">
+                                        <h3 class="viz-title">Subject Accuracy</h3>
+                                    </div>
+                                    <div id="subject-breakdown-container">
+                                        <!-- Dynamic bars -->
+                                    </div>
+                                </div>
+
+                                <!-- Performance Edge -->
+                                <div class="viz-card lg:col-span-1">
+                                    <div class="viz-card-header">
+                                        <h3 class="viz-title">Performance Edge</h3>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                                        <div>
+                                            <h4
+                                                style="font-size: 0.7rem; font-weight: 800; color: var(--success); text-transform: uppercase; margin-bottom: 0.75rem;">
+                                                Top Decks</h4>
+                                            <div id="top-decks-container"
+                                                style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                                        </div>
+                                        <div>
+                                            <h4
+                                                style="font-size: 0.7rem; font-weight: 800; color: var(--danger); text-transform: uppercase; margin-bottom: 0.75rem;">
+                                                Growth Opportunities</h4>
+                                            <div id="worst-decks-container"
+                                                style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1448,10 +1734,10 @@
                                 </button>
                             </div>
                             <div class="study-header-center">
-                                <div class="study-stats-counter" title="New / Difficult / Review">
+                                <div class="study-stats-counter" title="New / Difficult / Easy">
                                     <span class="stat-count stat-new" id="study-count-new">0</span>
-                                    <span class="stat-count stat-learn" id="study-count-learn">0</span>
-                                    <span class="stat-count stat-review" id="study-count-review">0</span>
+                                    <span class="stat-count stat-difficult" id="study-count-difficult">0</span>
+                                    <span class="stat-count stat-easy" id="study-count-easy">0</span>
                                 </div>
                                 <span id="study-deck-title" class="study-deck-title">Deck Title</span>
                             </div>
@@ -1586,9 +1872,9 @@
                                         <div
                                             style="width: 10px; height: 10px; border-radius: 50%; background: var(--warning);">
                                         </div>
-                                        <span class="text-sm font-semibold">Learning Cards</span>
+                                        <span class="text-sm font-semibold">Difficult Cards</span>
                                     </div>
-                                    <span id="summary-learning-count" class="badge"
+                                    <span id="summary-difficult-count" class="badge"
                                         style="background: var(--warning-light, #fef3c7); color: var(--warning); border: none; font-weight: 700;">0</span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1596,9 +1882,9 @@
                                         <div
                                             style="width: 10px; height: 10px; border-radius: 50%; background: var(--success);">
                                         </div>
-                                        <span class="text-sm font-semibold">Known Cards</span>
+                                        <span class="text-sm font-semibold">Easy Cards</span>
                                     </div>
-                                    <span id="summary-known-count" class="badge"
+                                    <span id="summary-easy-count" class="badge"
                                         style="background: var(--success-light, #dcfce7); color: var(--success); border: none; font-weight: 700;">0</span>
                                 </div>
                             </div>
@@ -1642,7 +1928,7 @@
 
                 <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                     <button class="btn btn-primary btn-lg w-full btn-signup-toggle">Sign up to Access</button>
-                    <button class="btn btn-secondary btn-lg w-full btn-login-toggle">Already have an account? Log
+                    <button class="btn btn-secondary btn-lg w-full btn-login-toggle">Have an account? Log
                         in</button>
                 </div>
 
@@ -1819,7 +2105,8 @@
                         <button class="settings-tab-btn" data-tab="settings-appearance">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                                 stroke="currentColor" class="icon-xs">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" /> 
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
                             </svg>
                             Appearance
                         </button>
