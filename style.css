@@ -4335,6 +4335,16 @@ body {
     border: 1px solid #bfdbfe;
 }
 
+.badge-new {
+    background: #eff6ff;
+    color: var(--primary);
+    border: 1px solid #dbeafe;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
 .share-list-item {
     display: flex;
     align-items: center;

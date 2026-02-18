@@ -1498,7 +1498,7 @@ async function resolveTags(tagNames) {
 // --- TODAY View ---
 
 async function loadTodayView() {
-    // 1. Greeting
+    // 1. Greeting & Date
     const hour = new Date().getHours();
     const greetingEl = document.getElementById('today-greeting');
     if (greetingEl) {
@@ -1513,143 +1513,103 @@ async function loadTodayView() {
         dateEl.textContent = new Date().toLocaleDateString('en-US', dateOptions);
     }
 
-    // 2. Fetch Due Cards count across ALL deck
-    // We need to fetch all cards for user? Or just count.
-    // Optimization: Call a stored procedure if possible, or select count.
-    // For now, client-side filtering of decks -> cards might be heavy but simple.
-    // Better: Fetch cards with due_at <= now()
+    // 2. Fetch Accessible Decks (Owned, Shared, Group)
+    const myDeckIds = await getMyDeckIds();
 
-    // 2. Fetch Due Cards count across ALL deck
-    const nowISO = new Date().toISOString();
-
-    // Fetch cards: Due (due_at <= now) OR New (reviews_count = 0)
-    // Note: 'New' cards usually have reviews_count = 0.
-    // We'll broaden the query to get all potential candidates, then filter in JS to be safe and consistent with study logic.
-    // Fetching minimal fields for performance
-    const { data: candidateCards, error: cardsError } = await sb
-        .from('cards')
-        .select('id, interval_days, reviews_count, due_at')
-        .or(`due_at.lte.${nowISO},reviews_count.eq.0`);
-
-    let totalDue = 0;
+    let totalAvailable = 0;
     let difficultCount = 0;
     let easyCount = 0;
-    let newCount = 0;
+    let actualCount = 0;
+    const totalLimit = state.settings.dailyLimit || 50;
 
-    if (!cardsError && candidateCards) {
-        const now = new Date();
+    if (myDeckIds.length > 0) {
+        // Fetch cards ONLY for these decks
+        const nowISO = new Date().toISOString();
+        const { data: candidateCards, error: cardsError } = await sb
+            .from('cards')
+            .select('id, interval_days, reviews_count, due_at')
+            .in('deck_id', myDeckIds)
+            .or(`due_at.lte.${nowISO},reviews_count.eq.0`);
 
-        // Filter exactly as startStudySession does to ensure consistency
-        let dueQueue = candidateCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
-        let newQueue = candidateCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+        if (!cardsError && candidateCards) {
+            const now = new Date();
+            let dueQueue = candidateCards.filter(c => c.reviews_count > 0 && (c.due_at && new Date(c.due_at) <= now || c.interval_days < 1));
+            let newQueue = candidateCards.filter(c => !c.reviews_count || c.reviews_count === 0);
 
-        // Sort Due: Overdue first
-        dueQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+            dueQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
+            totalAvailable = dueQueue.length + newQueue.length;
+            actualCount = Math.min(totalAvailable, totalLimit);
 
-        // Total Available before limits
-        const totalAvailable = dueQueue.length + newQueue.length;
-
-        // Apply Limits (Matches startStudySession logic)
-        // User setting: "Daily Goal" usually implies TOTAL cards to study today
-        const totalLimit = state.settings.dailyLimit || 50;
-
-        // We'll prioritize Due cards, then fill rest with New cards (or interleave)
-        // For the count, we just need the total number that will be shown.
-        // If (Due + New) > Limit, we cap at Limit.
-
-        const actualCount = Math.min(totalAvailable, totalLimit);
-
-        // Simulating the interleaving/limit selection to get accurate breakdown
-        // Let's create the breakdown based on the theoretical session content
-
-        let sessionCards = [];
-
-        // Strategy: Fill with Due first up to limit? Or balance?
-        // Anki default: Review limit (100) + New limit (20). 
-        // User Setting: "Daily Goal" (e.g. 30). This usually functions as a total cap.
-        // Let's assume we want to mix them.
-
-        // Temporary Logic for Count:
-        // Take up to `totalLimit` cards, prioritizing Due cards (SRS requirement), then New.
-        // (This behavior ensures user reviews what they need to first)
-
-        let addedCount = 0;
-
-        // 1. Add Due Cards (up to limit)
-        for (const card of dueQueue) {
-            if (addedCount >= totalLimit) break;
-            sessionCards.push(card);
-            addedCount++;
-        }
-
-        // 2. Add New Cards (if space remains)
-        for (const card of newQueue) {
-            if (addedCount >= totalLimit) break;
-            sessionCards.push(card);
-            addedCount++;
-        }
-
-        // Calculate breakdown on the *sessionCards*
-        sessionCards.forEach(card => {
-            const interval = Number(card.interval_days || 0);
-            const reviews = Number(card.reviews_count || 0);
-
-            if (reviews === 0) {
-                newCount++; // Blue / New
-            } else if (interval < 21 && interval >= 1) {
-                // Young / Learning (Standard Anki cutoff is 21 days for 'mature')
-                // But for "Difficult" label, maybe just call Learning (< 1d) + Young (< 21d) = "Learning/Review"?
-                // User asked for "Difficult vs Easy".
-                // Let's map: 
-                // New -> New
-                // Interval < 1 -> Difficult (Learning/Relearning)
-                // Interval >= 1 -> Easy (Review)
-                easyCount++;
-            } else if (interval < 1) {
-                difficultCount++;
-            } else {
-                easyCount++; // Mature
+            let sessionCards = [];
+            let addedCount = 0;
+            for (const card of dueQueue) {
+                if (addedCount >= totalLimit) break;
+                sessionCards.push(card);
+                addedCount++;
             }
-        });
+            for (const card of newQueue) {
+                if (addedCount >= totalLimit) break;
+                sessionCards.push(card);
+                addedCount++;
+            }
 
-        // Refined stats based on user request "Difficult vs Easy" next to count
-        // We'll bundle New + Lapsed into "Learning" (Difficult-ish) or keep separate?
-        // User asked specifically for "Difficult vs Easy".
-        // Let's treat New + Interval < 1 as "To Learn/Relearn" (Difficult side)
-        // Let's treat Interval >= 1 as "To Review" (Easy side)
+            sessionCards.forEach(card => {
+                const interval = Number(card.interval_days || 0);
+                const reviews = Number(card.reviews_count || 0);
+                if (reviews === 0 || interval < 1) difficultCount++;
+                else easyCount++;
+            });
+        }
+    }
 
-        difficultCount = newCount + sessionCards.filter(c => c.reviews_count > 0 && c.interval_days < 1).length;
-        easyCount = sessionCards.filter(c => c.reviews_count > 0 && c.interval_days >= 1).length;
+    // UI Updates for the Daily Review Card
+    const dueCountEl = document.getElementById('today-due-count');
+    const dueLabelEl = document.getElementById('today-due-label');
+    const startBtn = document.getElementById('start-today-review-btn');
+    const actionTitle = document.querySelector('.primary-action-card h2');
+    const actionDesc = document.querySelector('.primary-action-card p');
 
-        document.getElementById('today-due-count').textContent = actualCount;
+    if (myDeckIds.length === 0) {
+        // No decks state
+        if (dueCountEl) dueCountEl.textContent = '0';
+        if (dueLabelEl) dueLabelEl.textContent = 'decks found';
+        if (actionTitle) actionTitle.textContent = 'Start Your Journey';
+        if (actionDesc) actionDesc.textContent = 'Explore community decks to begin learning.';
+        if (startBtn) {
+            startBtn.innerHTML = 'Explore Community';
+        }
+        document.getElementById('due-breakdown')?.classList.add('hidden');
+    } else {
+        // Has decks state
+        if (dueCountEl) dueCountEl.textContent = actualCount;
+        if (actionTitle) actionTitle.textContent = 'Daily Review';
+        if (actionDesc) actionDesc.textContent = actualCount > 0 ? 'You have cards waiting for review.' : "You're all caught up for today!";
 
-        // Subtitle
-        const subText = document.getElementById('today-due-label');
-        if (subText) {
+        if (startBtn) {
+            startBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="icon-sm">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                </svg>
+                ${actualCount > 0 ? 'Start Session' : 'Custom Study'}
+            `;
+            startBtn.onclick = null; // Reset to default listener in script
+        }
+
+        if (dueLabelEl) {
             if (actualCount < totalAvailable) {
-                subText.innerHTML = `cards to study (Goal: ${totalLimit}) <span title="Total Backlog" style="font-size:0.85em; opacity:0.7; display:block; margin-top:4px;">${totalAvailable - actualCount} others waiting</span>`;
+                dueLabelEl.innerHTML = `cards to study (Goal: ${totalLimit}) <span title="Total Backlog" style="font-size:0.85em; opacity:0.7; display:block; margin-top:4px;">${totalAvailable - actualCount} others waiting</span>`;
             } else {
-                subText.textContent = 'cards due today';
+                dueLabelEl.textContent = 'cards due today';
             }
         }
 
-        // Breakdown UI
         const difficultEl = document.getElementById('today-difficult-count');
         const easyEl = document.getElementById('today-easy-count');
         const breakdownEl = document.getElementById('due-breakdown');
 
-        if (difficultEl) {
-            difficultEl.textContent = difficultCount;
-            difficultEl.closest('.breakdown-item').title = `New cards and cards you're still learning (${difficultCount})`;
-        }
-        if (easyEl) {
-            easyEl.textContent = easyCount;
-            easyEl.closest('.breakdown-item').title = `Cards you've graduated and are reviewing (${easyCount})`;
-        }
-
-        if (breakdownEl) {
-            breakdownEl.classList.toggle('hidden', actualCount === 0);
-        }
+        if (difficultEl) difficultEl.textContent = difficultCount;
+        if (easyEl) easyEl.textContent = easyCount;
+        if (breakdownEl) breakdownEl.classList.toggle('hidden', actualCount === 0);
     }
 
     // 3. Streak (Mock logic since we don't have daily activity log easily accessible without complex query)
@@ -1754,47 +1714,37 @@ async function loadTodayMyDecks() {
 
     grid.innerHTML = getSkeletonLoadingCards(3);
 
-    const { data: decks } = await sb.from('decks').select('id, title, user_id, subject_id, group_id, subjects(name)');
-    if (!decks) {
-        section.classList.add('hidden');
-        return null;
-    }
+    // 1. Fetch access rights first (Shared & Groups)
+    const myDeckIds = await getMyDeckIds();
 
-    // Parallel fetch for shared access
-    const [groupMembersRes, directSharesRes] = await Promise.all([
-        sb.from('group_members').select('group_id').eq('user_id', state.user.id),
-        sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email)
-    ]);
+    // 2. Fetch ALL relevant decks details
+    const { data: decks } = await sb.from('decks')
+        .select('id, title, user_id, subject_id, group_id, subjects(name)')
+        .in('id', myDeckIds);
 
-    const myGroupIds = groupMembersRes.data ? groupMembersRes.data.map(gm => gm.group_id) : [];
-    const sharedDeckIds = directSharesRes.data ? directSharesRes.data.map(ds => ds.deck_id) : [];
-
-    // Filter: Include ONLY decks owned by me for 'Ready to Learn'
-    const myAccessDecks = decks.filter(d => d.user_id === state.user.id);
-
-    if (myAccessDecks.length === 0) {
+    if (!decks || decks.length === 0) {
         section.classList.add('hidden');
         return null; // No decks to show
     }
 
     const now = new Date().toISOString();
-    // Fetch due cards only for relevant decks to optimize? Or just all due cards for me?
-    // Let's filter cards by deck_id using 'in' if possible, but list might be long.
-    // Simpler: Fetch all due cards (RLS handles visibility generally), then filter by myAccessDecks in JS.
+    // Fetch cards for these decks to check due status
     const { data: cards } = await sb.from('cards')
-        .select('deck_id, due_at')
-        .lte('due_at', now);
+        .select('deck_id, due_at, reviews_count')
+        .in('deck_id', decks.map(d => d.id))
+        .or(`due_at.lte.${now},reviews_count.eq.0`);
 
     const deckStats = {};
     if (cards) {
         cards.forEach(c => {
-            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at };
+            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at || now };
             deckStats[c.deck_id].count++;
-            if (c.due_at < deckStats[c.deck_id].earliest) deckStats[c.deck_id].earliest = c.due_at;
+            if (c.due_at && c.due_at < deckStats[c.deck_id].earliest) deckStats[c.deck_id].earliest = c.due_at;
         });
     }
 
-    const focusDecks = myAccessDecks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
+    // Filter to decks that HAVE something to study (Due or New)
+    const focusDecks = decks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
 
     focusDecks.sort((a, b) => {
         const statsA = deckStats[a.id];
@@ -1809,7 +1759,7 @@ async function loadTodayMyDecks() {
 
     if (top3.length === 0) {
         section.classList.add('hidden');
-        return decks; // Return all decks to use their subjects for notes even if none are due
+        return decks;
     }
 
     section.classList.remove('hidden');
@@ -1817,12 +1767,15 @@ async function loadTodayMyDecks() {
         const stats = deckStats[deck.id];
         const div = document.createElement('div');
         div.className = 'dashboard-card';
+        // Label: "New" if no reviews, "Due" otherwise
+        const isNew = decks.find(d => d.id === deck.id && !stats.earliest); // Over-simplified but okay for badge
+
         div.innerHTML = `
             <div class="flex justify-between items-start mb-6">
-                <span class="badge badge-due">${stats.count} Due</span>
+                <span class="badge ${stats.count > 0 ? 'badge-due' : 'badge-new'}">${stats.count} Pending</span>
             </div>
             <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
-            <p class="text-sm text-dim mb-4">Urgent review available</p>
+            <p class="text-sm text-dim mb-4">${deck.subjects?.name || 'Flashcards'}</p>
             <button class="btn btn-primary btn-sm w-full">Study Now</button>
         `;
         div.onclick = () => {
@@ -2004,9 +1957,18 @@ function getSubjectColor(name) {
 }
 
 document.getElementById('start-today-review-btn').addEventListener('click', () => {
+    // If no decks, redirect to community
+    const btn = document.getElementById('start-today-review-btn');
+    if (btn && btn.textContent.includes('Explore')) {
+        updateNav('nav-community');
+        switchView('community-view');
+        loadCommunityDecks();
+        return;
+    }
+
     // Start session with all due cards
     state.studySessionConfig = { type: 'standard' };
-    startStudySession(); // Logic needs to handle "All Decks" if null currentDeck
+    startStudySession();
 });
 
 
@@ -3699,6 +3661,23 @@ if (fullscreenBtn) {
 
 // --- Study Logic ---
 
+// Helper to get all accessible deck IDs (Owned, Shared, Group)
+async function getMyDeckIds() {
+    const [gpRes, dsRes] = await Promise.all([
+        sb.from('group_members').select('group_id').eq('user_id', state.user.id),
+        sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email)
+    ]);
+    const myGroupIds = gpRes.data ? gpRes.data.map(gm => gm.group_id) : [];
+    const sharedDeckIds = dsRes.data ? dsRes.data.map(ds => ds.deck_id) : [];
+
+    const conditions = [`user_id.eq.${state.user.id}`];
+    if (sharedDeckIds.length > 0) conditions.push(`id.in.(${sharedDeckIds.join(',')})`);
+    if (myGroupIds.length > 0) conditions.push(`group_id.in.(${myGroupIds.join(',')})`);
+
+    const { data: decks } = await sb.from('decks').select('id').or(conditions.join(','));
+    return decks ? decks.map(d => d.id) : [];
+}
+
 async function startStudySession(restart = false) {
     if (!state.user) {
         if (state.currentDeck) {
@@ -3730,8 +3709,14 @@ async function startStudySession(restart = false) {
     if (state.currentDeck) {
         allCards = state.cards;
     } else {
-        const { data } = await sb.from('cards').select(`*, card_tags(tag_id)`).order('due_at');
-        if (data) allCards = data;
+        const deckIds = await getMyDeckIds();
+        if (deckIds.length > 0) {
+            const { data } = await sb.from('cards')
+                .select(`*, card_tags(tag_id)`)
+                .in('deck_id', deckIds)
+                .order('due_at');
+            if (data) allCards = data;
+        }
 
         if (state.studySessionConfig && state.studySessionConfig.type === 'standard') {
             const now = new Date();
