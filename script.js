@@ -205,6 +205,9 @@ async function checkUser() {
     if (state.user && state.user.email === 'kohzanden@gmail.com') {
         const addBtn = document.getElementById('add-note-btn');
         if (addBtn) addBtn.classList.remove('hidden');
+
+        const adminNav = document.getElementById('nav-admin');
+        if (adminNav) adminNav.classList.remove('hidden');
     }
 
     sb.auth.onAuthStateChange((_event, session) => {
@@ -473,6 +476,7 @@ async function showApp() {
         loadTags(); // Pre-load tags
         loadTodayView(); // New Homepage
         fetchUserProfile(); // Fetch custom username
+        subscribeToSupport(); // Init support chat
         await handleDeepLinks(); // Check for ?join= or ?deck= codes
 
         // Set active nav
@@ -1548,8 +1552,53 @@ async function loadTodayView() {
             const todayStart = new Date();
             todayStart.setHours(0, 0, 0, 0);
 
-            // 1. Calculate cards already completed TODAY
-            const reviewedTodayCount = allUserCards.filter(c => {
+            // 1. Calculate cards already completed TODAY (from owned or studied decks)
+
+            // Get user's OWNED decks
+            const { data: ownedDecksData } = await sb.from('decks').select('id').eq('user_id', state.user.id);
+            const ownedDeckIds = new Set(ownedDecksData ? ownedDecksData.map(d => d.id) : []);
+
+            // Get decks SHARED with user explicitly
+            const { data: sharedDecksData } = await sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email);
+            const sharedDeckIds = new Set(sharedDecksData ? sharedDecksData.map(d => d.deck_id) : []);
+
+            // Identify "active" community/group decks (where user has studied at least one card)
+            const otherDeckIds = myDeckIds.filter(id => !ownedDeckIds.has(id) && !sharedDeckIds.has(id));
+            const activeCommunityDecks = new Set();
+
+            if (otherDeckIds.length > 0) {
+                const deckReviewCounts = {};
+                allUserCards.forEach(c => {
+                    if (c.reviews_count > 0) {
+                        deckReviewCounts[c.deck_id] = (deckReviewCounts[c.deck_id] || 0) + 1;
+                    }
+                });
+                otherDeckIds.forEach(id => {
+                    // If any card in the deck has been reviewed, the specific deck is "active"
+                    if (deckReviewCounts[id] && deckReviewCounts[id] > 0) {
+                        activeCommunityDecks.add(id);
+                    }
+                });
+            }
+
+            // FILTER CARDS:
+            // Include if:
+            // 1. Deck is OWNED
+            // 2. OR Deck is explicitly SHARED
+            // 3. OR Deck is ACTIVE COMMUNITY (has >0 reviews)
+            const pertinentCards = allUserCards.filter(c => {
+                if (ownedDeckIds.has(c.deck_id)) return true;
+                if (sharedDeckIds.has(c.deck_id)) return true;
+                if (activeCommunityDecks.has(c.deck_id)) return true;
+
+                // Also, if a specific card has reviews, it should definitely count (safety check)
+                if (c.reviews_count > 0) return true;
+
+                return false;
+            });
+
+
+            const reviewedTodayCount = pertinentCards.filter(c => {
                 if (!c.last_reviewed) return false;
                 const lastReviewDate = new Date(c.last_reviewed);
                 lastReviewDate.setHours(0, 0, 0, 0);
@@ -1558,7 +1607,7 @@ async function loadTodayView() {
 
             // 2. Identify candidates for study (Not reviewed today)
             // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
-            const stillDue = allUserCards.filter(c => {
+            const stillDue = pertinentCards.filter(c => {
                 const interval = Number(c.interval_days || 0);
                 const due = c.due_at ? new Date(c.due_at) : null;
                 const isLearning = (interval < 1 && c.reviews_count > 0);
@@ -1586,6 +1635,12 @@ async function loadTodayView() {
             reviewQueue.sort((a, b) => new Date(a.due_at || 0) - new Date(b.due_at || 0));
 
             const totalDueQueue = [...learningQueue, ...reviewQueue];
+
+            // Store for quick access in startStudySession
+            state.todayQueue = totalDueQueue;
+            // Also store pertinentCards (or relevant subset) if we need to fall back or "Study More"
+            // Actually, simply storing the queues is enough.
+            state.newQueue = newQueue;
 
             // 4. Calculate Remaining Quota based on Daily Limit
             completedTodayCount = reviewedTodayCount;
@@ -1691,13 +1746,14 @@ async function loadTodayView() {
                 if (difficultEl) difficultEl.textContent = difficultCount;
                 if (easyEl) easyEl.textContent = easyCount;
 
-                // Hide if no cards at all to study
-                if (breakdownEl) breakdownEl.classList.toggle('hidden', totalAvailableCount === 0);
+                // Always show breakdown, even if 0, so user knows status
+                if (breakdownEl) breakdownEl.classList.remove('hidden');
             }
         }
     }
 
-    // 3. Streak & Mastery & Retention using Study Logs
+    // 3. Streak & Mastery ...
+
     const { data: logs } = await sb.from('study_logs')
         .select('review_time, rating')
         .eq('user_id', state.user.id)
@@ -1770,11 +1826,43 @@ async function loadTodayView() {
 
 // Fetch and display daily AI insight
 async function fetchDailyInsight(force = false) {
+    // Prevent multiple calls per session unless forced
+    if (!force && state.dailyInsightFetched) return;
+
+    // Check LocalStorage cache (avoid network call if already fetched today)
+    const todayStr = new Date().toDateString();
+    const lastFetchDate = localStorage.getItem('flashly_daily_insight_date');
+
+    // If we have a cached insight in localStorage, we could use that, 
+    // but complexity of storing the whole JSON there might be high.
+    // However, we can at least trust the 'state' if we had persistence.
+    // Since we don't persist state.aiInsight text across reloads easily without more code,
+    // we will rely on the Edge Function cache (fast DB read) for reloads, 
+    // BUT we will respect the 'dailyInsightFetched' flag for the current session.
+
+    // Actually, let's just stick to session flag + fast DB cache.
+    // The user said "called once a day every day".
+    // The Edge Function handles the "once a day GENERATION".
+    // The "call" itself is fine if it just returns cached text.
+
     const container = document.getElementById('daily-ai-insights-container');
     const textEl = document.getElementById('ai-insights-text');
     const carouselEl = document.getElementById('ai-actions-carousel');
 
     if (!container || !state.user) return;
+
+    // Show container and skeleton
+    container.classList.remove('hidden');
+    // Hide old content or show processing state
+    if (textEl) {
+        textEl.innerHTML = `
+        <div class="space-y-2 animate-pulse mt-2" style="max-width: 90%;">
+            <div class="h-4 bg-gray-200 rounded-lg w-full"></div>
+            <div class="h-4 bg-gray-200 rounded-lg w-5/6"></div>
+            <div class="h-4 bg-gray-200 rounded-lg w-4/6"></div>
+        </div>`;
+    }
+    if (carouselEl) carouselEl.innerHTML = ''; // Clear actions while loading
 
     try {
         // Call the AI daily coach function
@@ -1814,6 +1902,7 @@ async function fetchDailyInsight(force = false) {
         }
 
         if (insight) {
+            state.dailyInsightFetched = true;
             container.classList.remove('hidden');
             if (textEl) textEl.textContent = insight;
 
@@ -1915,6 +2004,11 @@ async function handleAIAction(action) {
             switchView('insights-view');
             loadStats();
             break;
+        case 'browse_community':
+            updateNav('nav-community');
+            switchView('community-view');
+            loadCommunityDecks();
+            break;
         default:
             console.warn('Unknown action type:', action.type);
     }
@@ -1947,6 +2041,10 @@ async function loadTodayMyDecks() {
 
     grid.innerHTML = getSkeletonLoadingCards(3);
 
+    // 0. Fetch Deck Shares explicitly
+    const { data: shared } = await sb.from('deck_shares').select('deck_id').eq('user_email', state.user.email);
+    const sharedDeckIds = new Set(shared ? shared.map(s => s.deck_id) : []);
+
     // 1. Fetch access rights first (Shared & Groups)
     const myDeckIds = await getMyDeckIds();
 
@@ -1960,24 +2058,38 @@ async function loadTodayMyDecks() {
         return null; // No decks to show
     }
 
-    const now = new Date().toISOString();
-    // Fetch cards for these decks to check due status
     const { data: cards } = await sb.from('cards')
         .select('deck_id, due_at, reviews_count')
         .in('deck_id', decks.map(d => d.id))
-        .or(`due_at.lte.${now},reviews_count.eq.0`);
+        .or(`due_at.lte.${new Date().toISOString()},reviews_count.eq.0`)
+        .limit(2000); // Limit to recent active ones for display
 
     const deckStats = {};
+    const deckHasReviews = {};
     if (cards) {
         cards.forEach(c => {
-            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at || now };
+            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at || new Date().toISOString() };
             deckStats[c.deck_id].count++;
             if (c.due_at && c.due_at < deckStats[c.deck_id].earliest) deckStats[c.deck_id].earliest = c.due_at;
+
+            if (c.reviews_count > 0) deckHasReviews[c.deck_id] = true;
         });
     }
 
     // Filter to decks that HAVE something to study (Due or New)
-    const focusDecks = decks.filter(d => deckStats[d.id] && deckStats[d.id].count > 0);
+    const focusDecks = decks.filter(d => {
+        const stats = deckStats[d.id];
+        if (!stats || stats.count === 0) return false;
+
+        // If owned, show it
+        if (d.user_id === state.user.id) return true;
+
+        // If shared explicitly, show it
+        if (sharedDeckIds.has(d.id)) return true;
+
+        // If community (not owned/shared), ONLY show if there are cards with reviews > 0
+        return deckHasReviews[d.id] === true;
+    });
 
     focusDecks.sort((a, b) => {
         const statsA = deckStats[a.id];
@@ -2189,7 +2301,7 @@ function getSubjectColor(name) {
     return `hsl(${h}, ${s}%, ${l}%)`;
 }
 
-document.getElementById('start-today-review-btn').addEventListener('click', () => {
+document.getElementById('start-today-review-btn').addEventListener('click', async () => {
     const btn = document.getElementById('start-today-review-btn');
     if (!btn) return;
 
@@ -2201,6 +2313,12 @@ document.getElementById('start-today-review-btn').addEventListener('click', () =
         return;
     }
 
+    // UX: Show loading immediately
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Loading...';
+    btn.style.opacity = '0.7';
+    btn.style.pointerEvents = 'none';
+
     // Determine if this is a "Study More" session (limit bypass)
     // The button text is set in loadTodayView
     const isStudyMore = btn.textContent.includes('Study More');
@@ -2209,7 +2327,17 @@ document.getElementById('start-today-review-btn').addEventListener('click', () =
         type: 'standard',
         isStudyMore: isStudyMore
     };
-    startStudySession();
+
+    // Tiny delay to let UI render the spinner before blocking with JS/Network
+    setTimeout(() => {
+        startStudySession().catch(err => {
+            console.error("Failed to start session:", err);
+            btn.innerHTML = originalContent;
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+            showToast("Failed to start session", "error");
+        });
+    }, 10);
 });
 
 
@@ -2218,11 +2346,11 @@ document.getElementById('start-today-review-btn').addEventListener('click', () =
 async function loadDecksView(force = false) {
     const list = document.getElementById('deck-list');
 
-    // Instant toggle if data is present and not forced
-    if (!force && state.decks && state.decks.length > 0 && state.subjects && state.subjects.length > 0) {
-        renderDecksViewWithSubjects();
-        return;
-    }
+    // Instant toggle logic removed to ensure stats are always fresh
+    // if (!force && state.decks && state.decks.length > 0 && state.subjects && state.subjects.length > 0) {
+    //     renderDecksViewWithSubjects();
+    //     return;
+    // }
 
     if (list) list.innerHTML = getComponentLoader('Syncing your decks...');
 
@@ -2266,7 +2394,8 @@ async function loadDecksView(force = false) {
     const stats = {};
     const { data: cards } = await sb.from('cards')
         .select('id, deck_id, due_at, interval_days, reviews_count')
-        .in('deck_id', deckIds);
+        .in('deck_id', deckIds)
+        .limit(10000); // Bump limit to avoid 0 count on large libraries
 
     const user_id = state.user?.id;
     const { data: logs } = user_id ? await sb.from('study_logs')
@@ -2287,27 +2416,46 @@ async function loadDecksView(force = false) {
     }
 
     const now = new Date();
+    // Initialize stats for ALL decks first to ensure defaults
+    state.decks.forEach(d => {
+        stats[d.id] = { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 };
+    });
+
     if (cards) {
+        console.log(`[loadDecksView] Fetched ${cards.length} cards for ${deckIds.length} decks.`);
         cards.forEach(card => {
+            // Safety check if card belongs to a deck we know about (though we queried by In list)
             if (!stats[card.deck_id]) stats[card.deck_id] = { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 };
+
             stats[card.deck_id].total++;
             const due = card.due_at ? new Date(card.due_at) : null;
             const interval = Number(card.interval_days || 0);
             const reviews = Number(card.reviews_count || 0);
+
+            // Check due status
             const isDue = (interval === 0) || (due && due <= now);
+
             if (isDue) {
-                if (reviews === 0) { stats[card.deck_id].new++; }
-                else {
-                    stats[card.deck_id].due++;
+                if (reviews === 0) {
+                    stats[card.deck_id].new++;
+                } else {
+                    stats[card.deck_id].due++; // This is effectively "To Review"
+                    // Sub-categorize difficulty (optional for UI, but good for stats)
                     if (interval < 1) stats[card.deck_id].difficult++;
                     else stats[card.deck_id].easy++;
                 }
             }
             if (cardMastery.has(card.id)) stats[card.deck_id].mature++;
         });
+    } else {
+        console.warn("[loadDecksView] No cards returned from DB stats query.");
     }
 
-    state.decks = state.decks.map(d => ({ ...d, stats: stats[d.id] || { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 } }));
+    // Debug log for specific deck stats issues
+    console.log("[loadDecksView] Final calculated stats:", stats);
+
+    // Update state
+    state.decks = state.decks.map(d => ({ ...d, stats: stats[d.id] }));
 
     // 4. Fetch Subjects
     const { data: subjects } = await sb.from('subjects')
@@ -3951,16 +4099,38 @@ async function startStudySession(restart = false) {
     if (state.currentDeck) {
         allCards = state.cards;
     } else {
-        const deckIds = await getMyDeckIds();
-        if (deckIds.length > 0) {
-            const nowISO = new Date().toISOString();
-            const { data } = await sb.from('cards')
-                .select(`*, card_tags(tag_id)`)
-                .in('deck_id', deckIds)
-                .or(`due_at.lte.${nowISO},reviews_count.eq.0,interval_days.lt.1`)
-                .order('due_at')
-                .limit(200); // Optimization: Don't fetch entire library for a daily review
-            if (data) allCards = data;
+        // Optimization: Use cached queue from loadTodayView if available
+        if (state.todayQueue && state.todayQueue.length > 0) {
+            let candidateIds = state.todayQueue.map(c => c.id);
+            // Include new cards if available
+            if (state.newQueue && state.newQueue.length > 0) {
+                candidateIds = [...candidateIds, ...state.newQueue.map(c => c.id)];
+            }
+
+            // Limit to 100 for the session start to be fast
+            const idsToFetch = candidateIds.slice(0, 100);
+
+            if (idsToFetch.length > 0) {
+                const { data } = await sb.from('cards')
+                    .select(`*, card_tags(tag_id)`)
+                    .in('id', idsToFetch);
+                if (data) allCards = data;
+            }
+        }
+
+        // Fallback or empty state handling
+        if (allCards.length === 0) {
+            const deckIds = await getMyDeckIds();
+            if (deckIds.length > 0) {
+                const nowISO = new Date().toISOString();
+                const { data } = await sb.from('cards')
+                    .select(`*, card_tags(tag_id)`)
+                    .in('deck_id', deckIds)
+                    .or(`due_at.lte.${nowISO},reviews_count.eq.0,interval_days.lt.1`)
+                    .order('due_at')
+                    .limit(200);
+                if (data) allCards = data;
+            }
         }
     }
 
@@ -6616,6 +6786,8 @@ function initImportManager() {
             bulkInput.value = '';
             closeModal();
             loadCards(state.currentDeck.id);
+            // Refresh main list count immediately if this deck was modified
+            loadDecksView(true);
         } catch (error) {
             console.error('Import Error:', error);
             showToast('Failed: ' + error.message, 'error');
@@ -7730,6 +7902,20 @@ document.getElementById('ai-generate-submit')?.addEventListener('click', async (
     }
 });
 
+function renderSkeletonSummary(container) {
+    if (!container) return;
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="animate-pulse">
+            <div class="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div class="h-4 bg-gray-200 rounded w-5/6 mb-4"></div>
+            <div class="h-20 bg-gray-200 rounded w-full"></div>
+        </div>
+    `;
+}
+
 function updateAIStatus(text, progress) {
     const status = document.querySelector('.ai-loading-status');
     const bar = document.getElementById('ai-progress-bar');
@@ -7738,6 +7924,7 @@ function updateAIStatus(text, progress) {
 }
 
 // Summary Logic
+
 document.getElementById('note-detail-ai-summary-btn')?.addEventListener('click', async () => {
     if (state.isGuest) {
         openModal('auth-modal');
@@ -7746,18 +7933,22 @@ document.getElementById('note-detail-ai-summary-btn')?.addEventListener('click',
 
     if (!state.currentNote) return;
 
-
     // Use the container for output
     const container = document.getElementById('ai-summary-container');
     const summaryBtn = document.getElementById('note-detail-ai-summary-btn');
 
     if (summaryBtn) summaryBtn.style.display = 'none';
-    renderSkeletonSummary(container); // Show skeleton immediately
+    if (container) {
+        container.classList.remove('hidden');
+        renderSkeletonSummary(container); // Show skeleton immediately
+    }
 
     try {
+        // Correct way to invoke edge function
         const { data, error } = await sb.functions.invoke('ai-generator', {
             body: {
                 action: 'summarize',
+
                 note_id: state.currentNote.id,
                 note_url: state.currentNote.url,
                 note_title: state.currentNote.title
@@ -7984,12 +8175,6 @@ function renderSummary(content, container) {
             animation: fadeIn 0.4s ease-in-out;
             box-shadow: var(--shadow-md);
         ">
-            <div style="position: absolute; top: 0; right: 0; padding: 1.5rem; opacity: 0.03; pointer-events: none;">
-                <svg style="width: 6rem; height: 6rem;" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2L14.4 9.6H22L15.8 14.2L18.2 21.8L12 17.2L5.8 21.8L8.2 14.2L2 9.6H9.6L12 2Z"/>
-                </svg>
-            </div>
-            
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; cursor: pointer;" onclick="toggleSummaryCollapse(this)">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
                     <div style="width: 32px; height: 32px; background: var(--primary-light); color: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
@@ -7998,25 +8183,53 @@ function renderSummary(content, container) {
                         </svg>
                     </div>
                     <div>
-                        <h4 style="font-weight: 800; font-size: 1.1rem; margin: 0; color: var(--text-primary); line-height: 1.2;">${summaryTitle}</h4>
-                        <span style="font-size: 0.75rem; color: var(--text-tertiary); font-weight: 600;">${content.subject_context || 'Flashly AI Summary'}</span>
+                        <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">AI Summary</div>
+                        <div style="font-weight: 700; font-size: 1.1rem; color: var(--text-primary); margin-top: -2px;">${summaryTitle}</div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <svg class="summary-toggle-icon" style="width: 20px; height: 20px; transition: transform 0.3s ease; color: var(--text-secondary);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                <div style="color: var(--text-tertiary);">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 20px; height: 20px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
                     </svg>
                 </div>
             </div>
-            
-            <div class="summary-content" style="max-height: 2000px; overflow: hidden; transition: all 0.4s ease;">
-                ${qualityHtml}
-                
+
+            <div class="summary-body">
+                <div style="font-size: 0.8rem; background: var(--surface-hover); border-radius: 8px; padding: 0.5rem 0.75rem; display: inline-block; margin-bottom: 1.5rem; font-weight: 600; color: var(--text-secondary);">
+                   ${content.subject_context || 'General Context'}
+                </div>
+
                 <ul style="list-style: none; padding: 0; margin: 0;">
                     ${listHtml}
                 </ul>
 
+                ${qualityHtml}
                 ${strategyHtml}
+
+                ${content.action_items && content.action_items.length > 0 ? `
+                <div style="margin-top: 1.5rem;">
+                    <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem;">Action Items</h4>
+                    <ul style="list-style: disc; padding-left: 1.2rem; color: var(--text-primary);">
+                        ${content.action_items.map(item => `<li style="margin-bottom: 0.25rem;">${item}</li>`).join('')}
+                    </ul>
+                </div>` : ''}
+
+                 ${content.potential_exam_questions && content.potential_exam_questions.length > 0 ? `
+                <div style="margin-top: 1.5rem;">
+                    <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.5rem;">Potential Exam Questions</h4>
+                    <ul style="list-style: none; padding: 0; color: var(--text-primary);">
+                        ${content.potential_exam_questions.map(q => `<li style="margin-bottom: 0.5rem; background: #f0fdf4; padding: 0.5rem; border-radius: 6px; border: 1px solid #dcfce7; color: #166534;"><strong>Q:</strong> ${q}</li>`).join('')}
+                    </ul>
+                </div>` : ''}
+
+                <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.5rem;">
+                     <button class="btn btn-text btn-sm" onclick="copySummaryToClipboard()" title="Copy to clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="icon-sm">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75" />
+                        </svg>
+                        Copy
+                     </button>
+                </div>
             </div>
         </div>
     `;
@@ -8027,27 +8240,35 @@ function renderSummary(content, container) {
 // Toggle function for collapsible summary
 function toggleSummaryCollapse(headerElement) {
     const summaryContent = headerElement.nextElementSibling;
-    const toggleIcon = headerElement.querySelector('.summary-toggle-icon');
-    const summaryContainer = headerElement.closest('.ai-summary-result');
+    const toggleIcon = headerElement.querySelector('svg'); // Use implicit SVG if class missing
 
-    if (!summaryContent || !toggleIcon || !summaryContainer) return;
+    if (!summaryContent) return;
 
-    const isCollapsed = summaryContent.style.maxHeight === '0px';
+    // Use summary-body class or just next element
+    const isCollapsed = summaryContent.style.display === 'none';
 
     if (isCollapsed) {
-        // Expand
-        summaryContent.style.maxHeight = '2000px';
-        summaryContent.style.opacity = '1';
-        toggleIcon.style.transform = 'rotate(0deg)';
-        summaryContainer.style.padding = '1.75rem';
+        summaryContent.style.display = 'block';
     } else {
-        // Collapse
-        summaryContent.style.maxHeight = '0px';
-        summaryContent.style.opacity = '0';
-        toggleIcon.style.transform = 'rotate(-90deg)';
-        summaryContainer.style.padding = '1.75rem';
-        summaryContainer.style.paddingBottom = '0';
+        summaryContent.style.display = 'none';
+        document.querySelector('.ai-summary-result').style.paddingBottom = 'none';
     }
+}
+
+function copySummaryToClipboard() {
+    const container = document.getElementById('ai-summary-container');
+    if (!container) return;
+
+    // Get text content but preserve basic structure nicely
+    // Or just use innerText which is usually good enough for "Copy"
+    const text = container.innerText;
+
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Summary copied to clipboard!', 'success');
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showToast('Failed to copy summary', 'error');
+    });
 }
 
 
@@ -8333,4 +8554,329 @@ function renderMaturityRadial(maturity) {
         .style("text-transform", "uppercase")
         .style("fill", "#64748b")
         .text("Total Cards");
+}
+
+// --- Feedback & Support Logic ---
+
+// Feedback Submit
+const feedbackForm = document.getElementById('feedback-form');
+if (feedbackForm) {
+    feedbackForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('feedback-message').value;
+        if (!msg.trim()) return;
+
+        const { error } = await sb.from('feedback').insert({
+            user_id: state.user.id,
+            message: msg
+        });
+
+        if (error) {
+            showToast('Error sending feedback: ' + error.message, 'error');
+        } else {
+            showToast('Feedback sent! Thank you.', 'success');
+            document.getElementById('feedback-message').value = '';
+        }
+    });
+}
+
+// Support Chat
+const supportChatForm = document.getElementById('support-chat-form');
+if (supportChatForm) {
+    supportChatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('support-input');
+        const msg = input.value;
+        if (!msg.trim()) return;
+
+        // Optimistic UI update
+        addSupportMessage(msg, 'user', new Date());
+        input.value = '';
+
+        const { error } = await sb.from('support_messages').insert({
+            conversation_id: state.user.id,
+            sender_id: state.user.id,
+            message: msg
+        });
+
+        if (error) {
+            showToast('Failed to send: ' + error.message, 'error');
+        }
+    });
+}
+
+function addSupportMessage(msg, type, date) { // type: 'user' | 'support'
+    const container = document.getElementById('support-messages');
+    if (!container) return;
+
+    const div = document.createElement('div');
+    div.className = `chat-message ${type === 'user' ? 'user' : 'support'}`;
+    // For user view: 'user' (me) is right blue. 'support' (admin) is left white.
+    // CSS for .user is right-aligned. CSS for .support is left.
+    
+    div.innerHTML = `
+        <div>${escapeHtml(msg)}</div>
+        <span class="chat-timestamp">${new Date(date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// Subscribe to Support Messages
+function subscribeToSupport() {
+    if (!state.user) return;
+
+    // Load initial messages
+    sb.from('support_messages')
+        .select('*')
+        .eq('conversation_id', state.user.id)
+        .order('created_at', { ascending: true })
+        .then(({data, error}) => {
+             if(data) {
+                 const container = document.getElementById('support-messages');
+                 if(container) {
+                     container.innerHTML = '';
+                     data.forEach(m => {
+                         const type = m.sender_id === state.user.id ? 'user' : 'support';
+                         addSupportMessage(m.message, type, m.created_at);
+                     });
+                     // Add welcome message if empty?
+                     if (data.length === 0) {
+                         const welcome = document.createElement('div');
+                         welcome.className = 'text-center text-secondary text-sm mt-4';
+                         welcome.textContent = 'Start a conversation with us!';
+                         container.appendChild(welcome);
+                     }
+                 }
+             } else if (error) {
+                 console.error('Error fetching support messages:', error);
+             }
+        });
+
+    // Realtime
+    sb.channel('support-chat')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `conversation_id=eq.${state.user.id}` }, payload => {
+        if (payload.new.sender_id !== state.user.id) {
+            addSupportMessage(payload.new.message, 'support', payload.new.created_at);
+        }
+    })
+    .subscribe();
+}
+
+
+// --- Admin Dashboard Logic ---
+let currentAdminChatUser = null;
+
+async function loadAdminDashboard() {
+    if (!state.user || state.user.email !== 'kohzanden@gmail.com') return;
+
+    // Default to Feedback tab
+    switchAdminTab('feedback');
+
+    // Load Feedback
+    loadAdminFeedback();
+}
+
+function switchAdminTab(tab) {
+    const feedbackTab = document.getElementById('admin-feedback-tab');
+    const supportTab = document.getElementById('admin-support-tab');
+    const feedbackList = document.getElementById('admin-feedback-list');
+    const supportList = document.getElementById('admin-support-list');
+
+    if (feedbackTab) feedbackTab.classList.toggle('active', tab === 'feedback');
+    if (supportTab) supportTab.classList.toggle('active', tab === 'support');
+    if (feedbackList) feedbackList.classList.toggle('hidden', tab !== 'feedback');
+    if (supportList) supportList.classList.toggle('hidden', tab !== 'support');
+
+    if (tab === 'support') loadAdminSupportChats();
+    if (tab === 'feedback') loadAdminFeedback();
+}
+
+async function loadAdminFeedback() {
+    const container = document.getElementById('admin-feedback-list');
+    if (!container) return;
+    
+    container.innerHTML = '<p class="text-secondary text-center">Loading...</p>';
+
+    // Note: This query assumes we can join auth.users via RLS or view, which might fail if user_id is foreign key to auth.users but not exposed.
+    // If it fails, we fall back to just user_id.
+    const { data, error } = await sb.from('feedback').select('*').order('created_at', { ascending: false });
+
+    if (error) {
+        container.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        return;
+    }
+
+    if (!data.length) {
+        container.innerHTML = '<p class="text-secondary text-center">No feedback yet.</p>';
+        return;
+    }
+
+    // Try to resolve user emails if possible, otherwise show ID
+    // We can't easily join auth tables directly from client client usually unless public view exists.
+    // We'll just show ID for now or try fetching profile.
+    
+    // Fetch profiles for these users
+    const userIds = [...new Set(data.map(d => d.user_id))];
+    let userMap = {};
+    if (userIds.length > 0) {
+        const { data: profiles } = await sb.from('profiles').select('id, username').in('id', userIds);
+        if (profiles) {
+            profiles.forEach(p => userMap[p.id] = p.username);
+        }
+    }
+
+    container.innerHTML = data.map(item => `
+        <div class="feedback-item">
+            <div class="feedback-header">
+                <span>${escapeHtml(userMap[item.user_id] || item.user_id)}</span>
+                <span>${new Date(item.created_at).toLocaleString()}</span>
+            </div>
+            <div class="feedback-content">${escapeHtml(item.message)}</div>
+        </div>
+    `).join('');
+}
+
+async function loadAdminSupportChats() {
+    const listContainer = document.getElementById('admin-chat-users');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '<p class="text-xs text-secondary p-2">Loading...</p>';
+
+    // Get unique conversations. 
+    // We select distinct conversation_id. 
+    // Supabase specific query for distinct:
+    // Actually, just fetching latest messages is easier.
+    const { data, error } = await sb.from('support_messages')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+    if (error) {
+        listContainer.innerHTML = 'Error loading chats';
+        return;
+    }
+
+    const conversations = {};
+    data.forEach(msg => {
+         if (!conversations[msg.conversation_id]) {
+             conversations[msg.conversation_id] = msg;
+         }
+    });
+
+    // Render list
+    listContainer.innerHTML = '';
+    
+    const userIds = Object.keys(conversations);
+    if (userIds.length === 0) {
+        listContainer.innerHTML = '<p class="text-xs text-secondary p-2">No active chats.</p>';
+        return;
+    }
+
+    let userMap = {};
+    const { data: profiles } = await sb.from('profiles').select('id, username').in('id', userIds);
+    if (profiles) {
+        profiles.forEach(p => userMap[p.id] = p.username);
+    }
+
+    userIds.forEach(uid => {
+        const lastMsg = conversations[uid];
+        const div = document.createElement('div');
+        div.className = 'user-item';
+        div.innerHTML = `
+            <div class="name">${escapeHtml(userMap[uid] || uid.slice(0, 8) + '...')}</div>
+            <div class="preview">${escapeHtml(lastMsg.message)}</div>
+            <div class="text-xs text-secondary" style="font-size: 0.65rem;">${new Date(lastMsg.created_at).toLocaleDateString()}</div>
+        `;
+        div.onclick = () => {
+            // Highlight active
+            document.querySelectorAll('.chat-sidebar .user-item').forEach(el => el.classList.remove('active'));
+            div.classList.add('active');
+            openAdminChat(uid);
+        };
+        listContainer.appendChild(div);
+    });
+}
+
+async function openAdminChat(userId) {
+    currentAdminChatUser = userId;
+    const header = document.getElementById('admin-chat-header');
+    if (header) header.textContent = 'Chat with ' + userId;
+
+    const container = document.getElementById('admin-chat-messages');
+    container.innerHTML = '<p class="p-4 text-secondary">Loading history...</p>';
+
+    const input = document.getElementById('admin-chat-input');
+    const btn = document.querySelector('#admin-chat-form button');
+    if (input) input.disabled = false;
+    if (btn) btn.disabled = false;
+
+    // Unsubscribe previous
+    sb.removeAllChannels(); 
+
+    // Subscribe new
+    sb.channel(`admin-chat:${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'support_messages', filter: `conversation_id=eq.${userId}` }, payload => {
+          appendAdminChatMessage(payload.new);
+      })
+      .subscribe();
+
+    // Fetch messages
+    const { data } = await sb.from('support_messages').select('*').eq('conversation_id', userId).order('created_at', { ascending: true });
+    
+    container.innerHTML = '';
+    if (data && data.length > 0) {
+        data.forEach(appendAdminChatMessage);
+    } else {
+        container.innerHTML = '<p class="p-4 text-secondary text-center">No messages yet.</p>';
+    }
+}
+
+function appendAdminChatMessage(msg) {
+    const container = document.getElementById('admin-chat-messages');
+    if(!container) return;
+
+    // In Admin View:
+    // If sender is ME (admin), align right (blue).
+    // If sender is THEM (user), align left (white).
+    const isMe = msg.sender_id === state.user.id; 
+    
+    const div = document.createElement('div');
+    // We reuse .chat-message.user for "Me" and .chat-message.support for "Them"
+    div.className = `chat-message ${isMe ? 'user' : 'support'}`; 
+    
+    div.innerHTML = `
+        <div>${escapeHtml(msg.message)}</div>
+        <span class="chat-timestamp">${new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// Admin Send
+const adminChatForm = document.getElementById('admin-chat-form');
+if(adminChatForm) {
+    adminChatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if(!currentAdminChatUser) return;
+        const input = document.getElementById('admin-chat-input');
+        const msg = input.value;
+        if(!msg.trim()) return;
+        
+        // Optimistic update
+        appendAdminChatMessage({
+            sender_id: state.user.id,
+            message: msg,
+            created_at: new Date().toISOString()
+        });
+        
+        input.value = '';
+
+        await sb.from('support_messages').insert({
+            conversation_id: currentAdminChatUser, // Valid UUID of the user
+            sender_id: state.user.id,
+            message: msg,
+            is_admin: true
+        });
+    });
 }
