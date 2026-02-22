@@ -740,6 +740,13 @@ body {
     position: relative;
 }
 
+.sidebar.guest-mode #nav-leaderboard {
+    order: 7;
+    opacity: 0.6;
+    filter: grayscale(1);
+    position: relative;
+}
+
 .sidebar.guest-mode #nav-settings {
     display: none;
 }
@@ -748,6 +755,7 @@ body {
 .sidebar.guest-mode .nav-item#nav-decks::after,
 .sidebar.guest-mode .nav-item#nav-groups::after,
 .sidebar.guest-mode .nav-item#nav-insights::after,
+.sidebar.guest-mode .nav-item#nav-leaderboard::after,
 .sidebar.guest-mode .nav-item#nav-settings::after {
     content: '🔒';
     position: absolute;
@@ -4046,7 +4054,6 @@ body {
     max-width: var(--max-content-width);
     margin: 0 auto;
     padding: 2.5rem 2rem;
-    animation: fadeIn 0.5s ease-out;
 }
 
 .insights-header-minimal {
@@ -8370,6 +8377,9 @@ html {
 /* --- Leaderboard Tabs --- */
 .lb-tabs {
     display: flex;
+    position: sticky;
+    top: -30px;
+    z-index: 10;
     gap: 0.35rem;
     background: var(--surface);
     padding: 5px;
@@ -8656,7 +8666,7 @@ html {
 
 #leaderboard-view .leaderboard-row {
     display: grid;
-    grid-template-columns: 60px 1fr 90px;
+    grid-template-columns: 60px minmax(0, 1fr) 90px;
     padding: 0.75rem 1.25rem;
     align-items: center;
     border-bottom: 1px solid var(--border);
@@ -8795,7 +8805,7 @@ html {
 
     #leaderboard-view .leaderboard-header-row,
     #leaderboard-view .leaderboard-row {
-        grid-template-columns: 45px 1fr 75px;
+        grid-template-columns: 45px minmax(0, 1fr) 75px;
         padding: 0.6rem 0.75rem;
     }
 
@@ -9281,9 +9291,10 @@ html {
 
 /* --- XP System Explainer Modal --- */
 .xp-explainer-content {
-    max-width: 500px !important;
+    max-width: min(500px, 90vw) !important;
+    max-height: 90vh;
     padding: 0 !important;
-    overflow: hidden;
+    overflow-y: auto !important;
     border-radius: 1.5rem !important;
 }
 
