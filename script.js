@@ -251,6 +251,11 @@ function updateAuthUI() {
 
     if (authTitle) authTitle.textContent = authMode === 'login' ? 'Welcome Back' : 'Create Account';
     if (authSubtitle) authSubtitle.textContent = authMode === 'login' ? 'Log in to your Flashly account' : 'Start your learning journey today';
+
+    const disclaimer = document.getElementById('auth-terms-disclaimer');
+    if (disclaimer) {
+        disclaimer.style.display = authMode === 'signup' ? 'block' : 'none';
+    }
 }
 
 const authToggleLink = document.getElementById('auth-toggle-link');
@@ -385,11 +390,16 @@ document.getElementById('auth-form').addEventListener('submit', async (e) => {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading-spinner"></span> Processing...';
 
-    let result;
     if (authMode === 'login') {
         result = await sb.auth.signInWithPassword({ email, password });
     } else {
-        result = await sb.auth.signUp({ email, password });
+        result = await sb.auth.signUp({
+            email,
+            password,
+            options: {
+                emailRedirectTo: window.location.origin
+            }
+        });
     }
     const { data, error } = result;
 
@@ -489,7 +499,7 @@ async function showApp() {
         setupRealtime();
         loadTags(); // Pre-load tags
         loadTodayView(); // New Homepage
-        fetchUserProfile(); // Fetch custom username
+        await fetchUserProfile(); // Fetch custom username and check ban status
         subscribeToSupport(); // Init support chat
         await handleDeepLinks(); // Check for ?join= or ?deck= codes
 
@@ -709,13 +719,19 @@ function showGuestPreview(type, data) {
 async function fetchUserProfile() {
     // Try to fetch all settings, but handle cases where columns might be missing (400 error)
     const { data, error } = await sb.from('profiles')
-        .select('username, theme, reduced_motion, compact_sidebar, daily_limit, default_separator, auto_flip, show_progress, last_ai_deck_at, daily_ai_summaries, last_summary_at')
+        .select('username, theme, reduced_motion, compact_sidebar, daily_limit, default_separator, auto_flip, show_progress, last_ai_deck_at, daily_ai_summaries, last_summary_at, banned, banned_until')
         .eq('id', state.user.id)
         .maybeSingle();
 
     if (error && (error.code === 'PGRST100' || error.status === 400 || error.message.includes('column'))) {
         console.warn("Appearance columns missing in DB, falling back to local storage.");
-        const { data: basicData } = await sb.from('profiles').select('username').eq('id', state.user.id).single();
+        const { data: basicData } = await sb.from('profiles').select('username, banned, banned_until').eq('id', state.user.id).single();
+        if (basicData?.banned || (basicData?.banned_until && new Date(basicData.banned_until) > new Date())) {
+            let currentUrl = window.location.href;
+            if (!currentUrl.endsWith('/') && !currentUrl.includes('.html')) currentUrl += '/';
+            window.location.href = new URL('ban/index.html', currentUrl).href;
+            return;
+        }
         if (basicData) {
             state.user.username = basicData.username;
             const userDisplay = document.getElementById('user-display');
@@ -723,6 +739,12 @@ async function fetchUserProfile() {
         }
         loadLocalSettings();
     } else if (data) {
+        if (data.banned || (data.banned_until && new Date(data.banned_until) > new Date())) {
+            let currentUrl = window.location.href;
+            if (!currentUrl.endsWith('/') && !currentUrl.includes('.html')) currentUrl += '/';
+            window.location.href = new URL('ban/index.html', currentUrl).href;
+            return;
+        }
         let username = data.username;
 
         // Determine if username needs to be set or updated from default (email)
@@ -8935,16 +8957,97 @@ async function loadAdminDashboard() {
 function switchAdminTab(tab) {
     const feedbackTab = document.getElementById('admin-feedback-tab');
     const supportTab = document.getElementById('admin-support-tab');
+    const usersTab = document.getElementById('admin-users-tab');
+
     const feedbackList = document.getElementById('admin-feedback-list');
     const supportList = document.getElementById('admin-support-list');
+    const usersList = document.getElementById('admin-users-list');
 
     if (feedbackTab) feedbackTab.classList.toggle('active', tab === 'feedback');
     if (supportTab) supportTab.classList.toggle('active', tab === 'support');
+    if (usersTab) usersTab.classList.toggle('active', tab === 'users');
+
     if (feedbackList) feedbackList.classList.toggle('hidden', tab !== 'feedback');
     if (supportList) supportList.classList.toggle('hidden', tab !== 'support');
+    if (usersList) usersList.classList.toggle('hidden', tab !== 'users');
 
     if (tab === 'support') loadAdminSupportChats();
     if (tab === 'feedback') loadAdminFeedback();
+    if (tab === 'users') loadAdminUsers();
+}
+
+async function loadAdminUsers() {
+    const container = document.getElementById('admin-users-container');
+    if (!container) return;
+
+    container.innerHTML = '<p class="text-secondary text-center">Loading users...</p>';
+
+    const { data, error } = await sb.rpc('admin_get_users');
+    if (error) {
+        container.innerHTML = `<p class="text-danger">Error: ${escapeHtml(error.message)}</p>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p class="text-secondary text-center">No users found.</p>';
+        return;
+    }
+
+    container.innerHTML = data.map(u => {
+        let isBanned = u.banned;
+        let banEnd = u.banned_until ? new Date(u.banned_until) : null;
+        if (banEnd && banEnd < new Date()) {
+            isBanned = false;
+        }
+
+        const isBannedVisual = isBanned || (banEnd && banEnd > new Date());
+        let statusText = isBannedVisual ? `Banned` : `Active`;
+        if (isBannedVisual && banEnd) {
+            statusText += ` till ${banEnd.toLocaleDateString()}`;
+        }
+
+        const btnText = isBannedVisual ? 'Unban' : 'Ban';
+        const btnClass = isBannedVisual ? 'btn-secondary' : 'btn-danger';
+
+        return `
+        <div class="list-item" style="display: grid; grid-template-columns: 1fr 1fr 1fr 120px; gap: 1rem; align-items: center; padding: 0.75rem 1rem; border: 1px solid var(--border); border-radius: 8px;">
+            <div class="font-bold">${escapeHtml(u.username || 'Unnamed')}</div>
+            <div class="text-primary">${u.xp || 0} XP</div>
+            <div class="${isBannedVisual ? 'text-danger' : 'text-success'}">${statusText}</div>
+            <div>
+                <button class="btn ${btnClass} btn-sm w-full" onclick="toggleUserBan('${u.id}', ${!isBannedVisual})">${btnText}</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+window.toggleUserBan = async function (userId, ban) {
+    let unbanTime = null;
+    if (ban) {
+        let days = prompt('Enter ban duration in days (0 for permanent):', '7');
+        if (days === null) return;
+        days = parseInt(days, 10);
+
+        if (days > 0) {
+            let d = new Date();
+            d.setDate(d.getDate() + days);
+            unbanTime = d.toISOString();
+        }
+    }
+
+    const { error } = await sb.rpc('admin_set_ban', {
+        target_user_id: userId,
+        is_banned: ban,
+        unban_time: unbanTime
+    });
+
+    if (error) {
+        showToast('Failed to change ban status: ' + error.message, 'error');
+    } else {
+        showToast(`User successfully ${ban ? 'banned' : 'unbanned'}!`, 'success');
+        loadAdminUsers();
+    }
 }
 
 async function loadAdminFeedback() {
@@ -9237,7 +9340,7 @@ document.getElementById('close-rank-modal')?.addEventListener('click', () => {
 
 async function renderTodayLeaderboard() {
     const rankEl = document.getElementById('today-user-rank');
-    const xpEl = document.getElementById('today-user-xp');
+    // const xpEl = document.getElementById('today-user-xp');
     const leagueEl = document.getElementById('today-user-league');
     const miniList = document.getElementById('today-mini-leaderboard');
 
@@ -9255,7 +9358,7 @@ async function renderTodayLeaderboard() {
 
     const userLeagueInfo = getLeagueInfo(state.leaderboard.userXP);
     rankEl.textContent = state.leaderboard.userRank ? `#${state.leaderboard.userRank}` : '--';
-    xpEl.textContent = state.leaderboard.userXP.toLocaleString();
+    // xpEl.textContent = state.leaderboard.userXP.toLocaleString();
     leagueEl.textContent = state.leaderboard.userLeague;
     leagueEl.style.color = userLeagueInfo.color;
 
@@ -9418,7 +9521,7 @@ function renderLeaderboard() {
 
     // If no rows in rest, show a message
     if (rest.length === 0 && top3.length > 0) {
-        list.innerHTML = `<div class="p-6 text-center text-secondary text-sm">All players shown in the podium above.</div>`;
+        list.innerHTML = `<div class="p-6 text-center text-secondary text-sm" style="margin: 10px 0; text-align: center;">All players shown in the podium above.</div>`;
     }
 
     // Handle Sticky Row (if user is not in top items shown)

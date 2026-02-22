@@ -717,9 +717,9 @@
                                         <div class="rank-info">
                                             <div class="text-sm font-semibold" id="today-user-league">Bronze League
                                             </div>
-                                            <div class="text-xs text-secondary"><span id="today-user-xp">0</span> XP
+                                            <!-- <div class="text-xs text-secondary"><span id="today-user-xp">0</span> XP
                                                 total
-                                            </div>
+                                            </div> -->
                                         </div>
                                     </div>
                                     <div class="mini-leaderboard-list mt-3" id="today-mini-leaderboard">
@@ -945,7 +945,7 @@
                                             </svg>
                                             <h2>Leaderboard</h2>
                                         </div>
-                                        <p>Compete with learners across Singapore.</p>
+                                        <p>Compete with learners on Flashly.</p>
                                         <button class="lb-hero-info-btn" onclick="showXPExplainer()">
                                             <!-- Heroicon: question-mark-circle -->
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
@@ -990,12 +990,6 @@
                                     <span class="lb-tab-text">Monthly</span>
                                 </button>
                                 <button class="lb-tab" data-tab="all-time">
-                                    <!-- Heroicon: globe-alt (mini) -->
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                        class="lb-tab-svg">
-                                        <path
-                                            d="M16.555 5.412a8.028 8.028 0 00-3.503-2.81 14.899 14.899 0 011.663 4.472 8.547 8.547 0 001.84-1.662zM13.326 7.825a13.43 13.43 0 00-2.413-5.773 8.087 8.087 0 00-1.826 0 13.43 13.43 0 00-2.413 5.773A13.86 13.86 0 0010 8c1.14 0 2.254-.097 3.326-.175zM6.506 8.37a15.309 15.309 0 01-1.007-3.69 8.028 8.028 0 00-3.503 2.81 8.546 8.546 0 001.84 1.662 13.4 13.4 0 002.67-.782zm7.988 0a13.4 13.4 0 002.67.782 8.546 8.546 0 001.84-1.662 8.028 8.028 0 00-3.503-2.81 15.31 15.31 0 01-1.007 3.69zM10 9.5c-1.175 0-2.327-.105-3.445-.31a13.43 13.43 0 002.413 5.773 8.087 8.087 0 001.826 0 13.429 13.429 0 002.413-5.773A13.87 13.87 0 0110 9.5zM6.632 14.588a8.027 8.027 0 003.503 2.81 13.43 13.43 0 01-1.663-4.472 8.546 8.546 0 01-1.84 1.662zM13.368 14.588a8.546 8.546 0 01-1.84-1.662 13.43 13.43 0 01-1.663 4.472 8.027 8.027 0 003.503-2.81z" />
-                                    </svg>
                                     <span class="lb-tab-text">All Time</span>
                                 </button>
                             </div>
@@ -1073,6 +1067,23 @@
                                     <button class="tab-btn" id="admin-support-tab"
                                         onclick="switchAdminTab('support')">Support
                                         Chats</button>
+                                    <button class="tab-btn" id="admin-users-tab"
+                                        onclick="switchAdminTab('users')">Manage Users</button>
+                                </div>
+                            </div>
+
+                            <!-- Admin Manage Users List -->
+                            <div id="admin-users-list" class="admin-section hidden">
+                                <div class="list-header"
+                                    style="display: grid; grid-template-columns: 1fr 1fr 1fr 120px; gap: 1rem; padding: 1rem; font-weight: bold; border-bottom: 1px solid var(--border);">
+                                    <span>Username</span>
+                                    <span>XP</span>
+                                    <span>Status</span>
+                                    <span>Actions</span>
+                                </div>
+                                <div id="admin-users-container" class="flex flex-col gap-2 p-2"
+                                    style="max-height: 50vh; overflow-y: auto;">
+                                    <p class="text-secondary text-center py-8">Loading users...</p>
                                 </div>
                             </div>
 
@@ -2977,6 +2988,11 @@
                     </div>
                     <button type="submit" id="auth-submit" class="btn btn-primary btn-full">Sign In</button>
                 </form>
+                <div id="auth-terms-disclaimer"
+                    style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: var(--text-secondary); display: none;">
+                    By signing up, you agree to our <a href="terms/index.html" target="_blank"
+                        style="color: var(--primary); text-decoration: underline;">Terms and Conditions</a>.
+                </div>
                 <p class="auth-footer">
                     <span id="auth-toggle-text">Don't have an account?</span>
                     <a href="#" id="auth-toggle-link">Sign Up</a>
