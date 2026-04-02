@@ -7624,11 +7624,11 @@ function renderNotes(notes) {
                     </div>
                     <span class="note-type-badge ${catClass}">${displayCat}</span>
                 </div>
-                <h3 class="note-title" title="${note.title}">${note.title}</h3>
+                <h3 class="note-title" title="${escapeHtml(note.title)}">${escapeHtml(note.title)}</h3>
                 <p class="text-sm text-secondary mb-2">${displaySub || displayCat}</p>
             </div>
             <div class="note-meta">
-                <span class="note-tag">${note.type}</span>
+                <span class="note-tag">${escapeHtml(note.type)}</span>
             </div>
         `;
         card.onclick = () => openNote(note);
@@ -7675,9 +7675,9 @@ function openNote(note) {
     const tagsContainer = document.getElementById('note-detail-tags');
     if (tagsContainer) {
         tagsContainer.innerHTML = `
-            <span class="note-tag-detail">${note.category}</span>
-            <span class="note-tag-detail">${note.subject}</span>
-            <span class="note-tag-detail">${note.type}</span>
+            <span class="note-tag-detail">${escapeHtml(note.category)}</span>
+            <span class="note-tag-detail">${escapeHtml(note.subject)}</span>
+            <span class="note-tag-detail">${escapeHtml(note.type)}</span>
         `;
     }
 
@@ -7691,7 +7691,7 @@ function openNote(note) {
         if (note.url.endsWith('.pdf')) {
             renderPDFSnippet(note.url);
         } else {
-            snippetContent.innerHTML = `<img src="${note.url}" style="width:100%; height:auto;" alt="Snippet">`;
+            snippetContent.innerHTML = `<img src="${escapeHtml(note.url)}" style="width:100%; height:auto;" alt="Snippet">`;
         }
     }
 
@@ -7815,8 +7815,8 @@ function renderSimilarNotes(currentNote) {
                 </svg>
             </div>
             <div class="similar-note-info">
-                <div class="similar-note-title" title="${note.title}">${note.title}</div>
-                <div class="similar-note-meta">${note.subject} • ${note.category}</div>
+                <div class="similar-note-title" title="${escapeHtml(note.title)}">${escapeHtml(note.title)}</div>
+                <div class="similar-note-meta">${escapeHtml(note.subject)} • ${escapeHtml(note.category)}</div>
             </div>
         `;
         card.onclick = () => openNote(note);
@@ -7890,7 +7890,7 @@ function openFullNoteViewer() {
         const container = document.getElementById('pdf-canvas-container');
         container.innerHTML = `<div class="p-10 text-white text-center">
             <p class="mb-4">This browser viewer only supports PDFs.</p>
-            <a href="${note.url}" target="_blank" class="btn btn-primary">Open in New Tab</a>
+            <a href="${escapeHtml(note.url)}" target="_blank" class="btn btn-primary">Open in New Tab</a>
         </div>`;
     }
 }
@@ -10177,7 +10177,7 @@ async function openUserProfile(userId) {
                 </div>
                 
                 <div style="flex: 1;">
-                    <h2 style="margin: 0; font-size: 2.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1;">${profile.username}</h2>
+                    <h2 style="margin: 0; font-size: 2.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1;">${escapeHtml(profile.username || 'User')}</h2>
                     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem;">
                         <span class="lb-league-tag ${info.cssClass}" style="padding: 4px 14px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 99px;">${info.name} League</span>
                         <span style="font-size: 1.1rem; font-weight: 700; color: var(--primary);">${(profile.xp || 0).toLocaleString()} <span style="font-size: 0.85rem; font-weight: 600; opacity: 0.7; color: var(--text-tertiary);">XP</span></span>
@@ -10246,7 +10246,7 @@ async function openUserProfile(userId) {
                             <div style="font-size: 3.5rem;">${info.icon}</div>
                             ${progressHtml}
                             <p style="font-size: 0.85rem; color: var(--text-tertiary); text-align: center; line-height: 1.5;">
-                                ${profile.username} is currently in the <strong>${info.name} League</strong>.
+                                ${escapeHtml(profile.username || 'User')} is currently in the <strong>${info.name} League</strong>.
                             </p>
                         </div>
                     </section>
@@ -10254,7 +10254,7 @@ async function openUserProfile(userId) {
                     <button class="btn btn-outline" onclick="closeUserProfile()" style="width: 100%; padding: 12px; border-radius: var(--radius); font-weight: 700; font-size: 0.9rem;">Return to App</button>
                     
                     <p style="text-align: center; font-size: 0.8rem; color: var(--text-tertiary); margin-top: 1rem;">
-                        This is a public profile view for ${profile.username}.
+                        This is a public profile view for ${escapeHtml(profile.username || 'User')}.
                     </p>
                 </div>
             </div>
