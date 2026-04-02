@@ -1,0 +1,3 @@
+## 2026-04-02 - Eliminate Redundant Sequential Database Queries
+**Learning:** Found sequential queries making identical database calls in `loadTodayView` and `startStudySession`. Specifically, `getGlobalCompletedTodayCount()` was making a redundant `select('card_id')` query on `study_logs` when the same data was fetched immediately after in `logsToday`.
+**Action:** Consolidate data access by reusing the result of the `logsToday` query array (`studiedTodayIds.size`) to compute the global completed count locally, removing the need for `getGlobalCompletedTodayCount` entirely and cutting network roundtrips.
