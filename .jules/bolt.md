@@ -1,0 +1,3 @@
+## 2025-02-18 - Avoid redundant database calls for daily study limit tracking
+**Learning:** The frontend made multiple sequential requests for today's study logs in a single function (once to count unique entries via `getGlobalCompletedTodayCount` and then again to build a Set of `studiedTodayIds`). Overlapping queries on the same table block the main thread longer and add unnecessary latency.
+**Action:** Always check if a required count metric can be derived locally from an already-fetched data structure (like the size of a Set built for deduplication) instead of making a dedicated API request.
