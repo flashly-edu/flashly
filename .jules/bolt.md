@@ -1,0 +1,3 @@
+## 2025-01-20 - Redundant Database Query Optimization
+**Learning:** In the `loadTodayView` function, a redundant query `getGlobalCompletedTodayCount()` was fetching `study_logs` simply to get the count of unique cards studied today. A few lines later, the exact same query structure was performed to construct `studiedTodayIds` Set, to find specific cards studied. The duplicate query causes unneeded database load and slows down the critical path of the dashboard rendering.
+**Action:** Removed the redundant `getGlobalCompletedTodayCount()` query and computed the count using the `.size` of the `studiedTodayIds` Set derived from the already-required `logsToday` fetch result. This saves an entire network request and ensures accuracy by reusing the same data snapshot.
