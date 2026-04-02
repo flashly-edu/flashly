@@ -1770,25 +1770,24 @@ async function loadTodayView() {
                 });
 
 
-                const reviewedTodayCount = pertinentCards.filter(c => {
-                    if (!c.last_reviewed) return false;
-                    const lastReviewDate = new Date(c.last_reviewed);
-                    lastReviewDate.setHours(0, 0, 0, 0);
-                    return lastReviewDate.getTime() === todayStart.getTime();
-                }).length;
+                const reviewedTodayCount = await getGlobalCompletedTodayCount();
 
-                // 2. Identify candidates for study (Not reviewed today)
+                // Get the set of IDs studied today from study_logs to accurately filter stillDue
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const { data: logsToday } = await sb.from('study_logs')
+                    .select('card_id')
+                    .eq('user_id', state.user.id)
+                    .gte('review_time', today.toISOString());
+                const studiedTodayIds = new Set(logsToday ? logsToday.map(l => l.card_id) : []);
+
                 // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
                 const stillDue = pertinentCards.filter(c => {
                     const interval = Number(c.interval_days || 0);
                     const due = c.due_at ? new Date(c.due_at) : null;
                     const isLearning = (interval < 1 && c.reviews_count > 0);
 
-                    // Include if never reviewed today
-                    if (!c.last_reviewed) return true;
-                    const lastReviewDate = new Date(c.last_reviewed);
-                    lastReviewDate.setHours(0, 0, 0, 0);
-                    const reviewedToday = lastReviewDate.getTime() === todayStart.getTime();
+                    const reviewedToday = studiedTodayIds.has(c.id);
 
                     if (!reviewedToday) return true;
 
@@ -4233,6 +4232,27 @@ if (fullscreenBtn) {
 // --- Study Logic ---
 
 // Helper to get all accessible deck IDs (Owned, Shared, Group)
+async function getGlobalCompletedTodayCount() {
+    if (!state.user) return 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayISO = today.toISOString();
+
+    const { data, error } = await sb.from('study_logs')
+        .select('card_id')
+        .eq('user_id', state.user.id)
+        .gte('review_time', todayISO);
+
+    if (error) {
+        console.error("Error fetching global completed today count:", error);
+        return 0;
+    }
+
+    if (!data) return 0;
+    const uniqueCards = new Set(data.map(log => log.card_id));
+    return uniqueCards.size;
+}
+
 async function getMyDeckIds() {
     const [gpRes, dsRes] = await Promise.all([
         sb.from('group_members').select('group_id').eq('user_id', state.user.id),
@@ -4323,19 +4343,26 @@ async function startStudySession(restart = false) {
 
     let queue = [];
     const config = state.studySessionConfig || { type: 'standard' };
+    const globalCompletedToday = await getGlobalCompletedTodayCount();
+    const dailyLimit = state.settings.dailyLimit || 50;
+    let remainingQuota = config.isStudyMore ? dailyLimit : Math.max(0, dailyLimit - globalCompletedToday);
 
     const now = new Date();
     if (config.type === 'due') {
         // Match updated stats logic: Only cards with reviews that are due or in learning
         queue = allCards.filter(c => c.reviews_count > 0 && (c.interval_days === 0 || (c.due_at && new Date(c.due_at) <= now)));
+        if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'difficult') {
         // Learning cards (Red)
         queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days < 1 && (c.due_at && new Date(c.due_at) <= now));
+        if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'easy') {
         // Review cards (Green)
         queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days >= 1 && (c.due_at && new Date(c.due_at) <= now));
+        if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'new') {
         queue = allCards.filter(c => !c.reviews_count || c.reviews_count === 0);
+        if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'custom') {
         queue = allCards;
         if (config.tagId) {
@@ -4343,26 +4370,34 @@ async function startStudySession(restart = false) {
         }
         if (config.limit) {
             queue = queue.slice(0, config.limit);
+        } else if (!config.isStudyMore) {
+            queue = queue.slice(0, remainingQuota);
         }
     } else {
         const now = new Date();
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        // 1. Calculate cards already completed TODAY (needed for correct daily limit enforcement)
-        const completedToday = allCards.filter(c => {
-            if (!c.last_reviewed) return false;
-            const lastReviewDate = new Date(c.last_reviewed);
-            lastReviewDate.setHours(0, 0, 0, 0);
-            return lastReviewDate.getTime() === todayStart.getTime();
-        }).length;
+        // 1. Identify studied today cards to filter standard candidates
+        const { data: logsToday } = await sb.from('study_logs')
+            .select('card_id')
+            .eq('user_id', state.user.id)
+            .gte('review_time', todayStart.toISOString());
+        const studiedTodayIds = new Set(logsToday ? logsToday.map(l => l.card_id) : []);
 
         // 2. Identify candidates for study (Exclude cards reviewed today)
         const candidates = allCards.filter(c => {
-            if (!c.last_reviewed) return true;
-            const lastReviewDate = new Date(c.last_reviewed);
-            lastReviewDate.setHours(0, 0, 0, 0);
-            return lastReviewDate.getTime() !== todayStart.getTime();
+            const reviewedToday = studiedTodayIds.has(c.id);
+            const interval = Number(c.interval_days || 0);
+            const due = c.due_at ? new Date(c.due_at) : null;
+            const isLearning = (interval < 1 && c.reviews_count > 0);
+
+            if (!reviewedToday) return true;
+
+            // SPECIAL CASE: Learning cards that are due again TODAY should stay in candidates
+            if (isLearning && due && due <= now) return true;
+
+            return false;
         });
 
         // 3. Separate Categories
@@ -4377,10 +4412,7 @@ async function startStudySession(restart = false) {
         const totalDueList = [...learningList, ...reviewList];
 
         // 4. Limits Logic
-        const dailyLimit = state.settings.dailyLimit || 50;
-
-        // If "Study More" is requested, we ignore the daily completion and grant a fresh batch of dailyLimit
-        let remainingQuota = config.isStudyMore ? dailyLimit : Math.max(0, dailyLimit - completedToday);
+        // remainingQuota already calculated globally above
 
         // SMART MIX: Always try to show a mix of New cards and Due cards
         // Strategy: Dedicate up to 25% of quota to New cards if available, prioritizing Due for the rest.
@@ -4418,6 +4450,8 @@ async function startStudySession(restart = false) {
     if (queue.length === 0) {
         if (config.isStudyMore) {
             showToast('You are truly all caught up for today!', 'success');
+        } else if (remainingQuota <= 0) {
+            showToast(`Daily limit of ${dailyLimit} cards reached. Click "Study More" to continue!`, 'info');
         } else {
             showToast('No cards match your study criteria!', 'info');
         }
