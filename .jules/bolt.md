@@ -1,0 +1,3 @@
+## 2024-04-03 - Debouncing DOM List Filtering
+**Learning:** In a vanilla JS SPA that lacks view virtualization, triggering large list filtering and subsequent full DOM re-renders (like `renderCardList()` and community search matching) on every keystroke causes significant input lag, as it forces the main thread to block on repetitive DOM operations and O(n) array traversals before the user finishes typing.
+**Action:** Always wrap input event handlers for search/filter operations in a `debounce` function (e.g., 300ms) to batch operations and wait for the user to pause typing, thereby dramatically reducing unnecessary calculations and DOM manipulations.

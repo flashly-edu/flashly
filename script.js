@@ -3754,10 +3754,13 @@ async function updateSaveDeckButton(deck) {
 // Search state
 let cardSearchQuery = '';
 
-document.getElementById('card-search-input').addEventListener('input', (e) => {
+// ⚡ Bolt Optimization: Debounced card search
+// Why: Prevents expensive O(n) filtering and full DOM re-rendering on every keystroke
+// Impact: Reduces main thread blocking by batching updates during fast typing
+document.getElementById('card-search-input').addEventListener('input', debounce((e) => {
     cardSearchQuery = e.target.value.toLowerCase();
     renderCardList();
-});
+}, 300));
 
 async function loadCards(deckId) {
     // Reset selection mode when loading a new deck
@@ -6612,7 +6615,10 @@ function renderCommunityDecks() {
 }
 
 // Search Suggestions
-document.getElementById('community-search').addEventListener('input', (e) => {
+// ⚡ Bolt Optimization: Debounced community search
+// Why: Prevents unnecessary filtering and DOM insertion on every keystroke
+// Impact: Improved input responsiveness when typing search terms
+document.getElementById('community-search').addEventListener('input', debounce((e) => {
     const val = e.target.value.trim().toLowerCase();
     const suggestions = document.getElementById('community-search-suggestions');
 
@@ -6638,7 +6644,7 @@ document.getElementById('community-search').addEventListener('input', (e) => {
         </div>
     `).join('');
     suggestions.classList.remove('hidden');
-});
+}, 300));
 
 window.setCommunitySearch = (val) => {
     document.getElementById('community-search').value = val;
