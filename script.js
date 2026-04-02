@@ -1769,9 +1769,6 @@ async function loadTodayView() {
                     return false;
                 });
 
-
-                const reviewedTodayCount = await getGlobalCompletedTodayCount();
-
                 // Get the set of IDs studied today from study_logs to accurately filter stillDue
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
@@ -1780,6 +1777,9 @@ async function loadTodayView() {
                     .eq('user_id', state.user.id)
                     .gte('review_time', today.toISOString());
                 const studiedTodayIds = new Set(logsToday ? logsToday.map(l => l.card_id) : []);
+
+                // ⚡ Bolt: Use cached local set size instead of identical DB query
+                const reviewedTodayCount = studiedTodayIds.size;
 
                 // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
                 const stillDue = pertinentCards.filter(c => {
@@ -4343,7 +4343,8 @@ async function startStudySession(restart = false) {
 
     let queue = [];
     const config = state.studySessionConfig || { type: 'standard' };
-    const globalCompletedToday = await getGlobalCompletedTodayCount();
+    // ⚡ Bolt: Only fetch globalCompletedToday if it will be used for quota calculation
+    const globalCompletedToday = config.isStudyMore ? 0 : await getGlobalCompletedTodayCount();
     const dailyLimit = state.settings.dailyLimit || 50;
     let remainingQuota = config.isStudyMore ? dailyLimit : Math.max(0, dailyLimit - globalCompletedToday);
 
