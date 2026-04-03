@@ -1,3 +1,6 @@
+## 2024-05-18 - Replacing Date Instantiation with String Comparison in Loops
+**Learning:** Instantiating `new Date(string)` inside tight loops processing tens of thousands of items (like flashcards) is a major performance bottleneck due to parsing overhead and memory allocation. However, since dates are often stored in ISO 8601 format, they are lexicographically sortable.
+**Action:** Replace `new Date(card.due_at) <= now` with `card.due_at <= now.toISOString()` and optimize `.sort()` similarly using string comparisons when processing large arrays of database records.
 ## 2024-04-03 - Debouncing DOM List Filtering
 **Learning:** In a vanilla JS SPA that lacks view virtualization, triggering large list filtering and subsequent full DOM re-renders (like `renderCardList()` and community search matching) on every keystroke causes significant input lag, as it forces the main thread to block on repetitive DOM operations and O(n) array traversals before the user finishes typing.
 **Action:** Always wrap input event handlers for search/filter operations in a `debounce` function (e.g., 300ms) to batch operations and wait for the user to pause typing, thereby dramatically reducing unnecessary calculations and DOM manipulations.

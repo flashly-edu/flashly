@@ -1735,6 +1735,7 @@ async function loadTodayView() {
 
             if (!cardsError && allUserCards) {
                 const now = new Date();
+                const nowISO = now.toISOString();
                 const todayStart = new Date();
                 todayStart.setHours(0, 0, 0, 0);
 
@@ -2281,9 +2282,10 @@ async function loadTodayMyDecks() {
 
     const deckStats = {};
     const deckHasReviews = {};
+    const nowISO = new Date().toISOString();
     if (cards) {
         cards.forEach(c => {
-            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at || new Date().toISOString() };
+            if (!deckStats[c.deck_id]) deckStats[c.deck_id] = { count: 0, earliest: c.due_at || nowISO };
             deckStats[c.deck_id].count++;
             if (c.due_at && c.due_at < deckStats[c.deck_id].earliest) deckStats[c.deck_id].earliest = c.due_at;
 
@@ -2641,6 +2643,8 @@ async function loadDecksView(force = false) {
             stats[d.id] = { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 };
         });
 
+        const nowISO = new Date().toISOString();
+
         if (cards) {
             console.log(`[loadDecksView] Fetched ${cards.length} cards for ${deckIds.length} decks.`);
             cards.forEach(card => {
@@ -2648,12 +2652,11 @@ async function loadDecksView(force = false) {
                 if (!stats[card.deck_id]) stats[card.deck_id] = { total: 0, due: 0, new: 0, difficult: 0, easy: 0, mature: 0 };
 
                 stats[card.deck_id].total++;
-                const due = card.due_at ? new Date(card.due_at) : null;
                 const interval = Number(card.interval_days || 0);
                 const reviews = Number(card.reviews_count || 0);
 
                 // Check due status
-                const isDue = (interval === 0) || (due && due <= now);
+                const isDue = (interval === 0) || (card.due_at && card.due_at <= nowISO);
 
                 if (isDue) {
                     if (reviews === 0) {
@@ -4394,15 +4397,15 @@ async function startStudySession(restart = false) {
 
     if (config.type === 'due') {
         // Match updated stats logic: Only cards with reviews that are due or in learning
-        queue = allCards.filter(c => c.reviews_count > 0 && (c.interval_days === 0 || (c.due_at && new Date(c.due_at) <= now)));
+        queue = allCards.filter(c => c.reviews_count > 0 && (c.interval_days === 0 || (c.due_at && c.due_at <= nowISO)));
         if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'difficult') {
         // Learning cards (Red)
-        queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days < 1 && (c.due_at && new Date(c.due_at) <= now));
+        queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days < 1 && (c.due_at && c.due_at <= nowISO));
         if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'easy') {
         // Review cards (Green)
-        queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days >= 1 && (c.due_at && new Date(c.due_at) <= now));
+        queue = allCards.filter(c => c.reviews_count > 0 && c.interval_days >= 1 && (c.due_at && c.due_at <= nowISO));
         if (!config.isStudyMore) queue = queue.slice(0, remainingQuota);
     } else if (config.type === 'new') {
         queue = allCards.filter(c => !c.reviews_count || c.reviews_count === 0);
@@ -5313,10 +5316,10 @@ async function refreshDeckStatsOnly(deckId) {
         });
     }
 
+    const nowISO = new Date().toISOString();
     let stats = { total: cards.length, due: 0, new: 0, mature: 0, difficult: 0, easy: 0 };
     cards.forEach(card => {
         const interval = Number(card.interval_days || 0);
-        const due = card.due_at ? new Date(card.due_at) : null;
         const reviews = Number(card.reviews_count || 0);
 
         if (reviews === 0) {
@@ -5324,7 +5327,7 @@ async function refreshDeckStatsOnly(deckId) {
         } else if (interval < 1) {
             stats.difficult++; // Difficult
             stats.due++;
-        } else if (due && due <= now) {
+        } else if (card.due_at && card.due_at <= nowISO) {
             stats.easy++; // Easy
             stats.due++;
         }
