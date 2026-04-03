@@ -1,3 +1,7 @@
+## 2025-04-02 - Unescaped XSS inside AI Note Summary
+**Vulnerability:** XSS vulnerability exists where AI-generated content retrieved via Supabase Edge Function is directly placed into innerHTML inside script.js without using `escapeHtml()`.
+**Learning:** XSS vulnerability is possible even for 'trusted' content outputs such as LLM predictions. An LLM may summarize or quote malicious user text inputs such as PDF contents.
+**Prevention:** Verify that all dynamic variables interpolated within template literals intended for `innerHTML` assignments are properly wrapped with `escapeHtml()` during development.
 ## 2025-02-14 - HTML sanitization missing for string interpolation within innerHTML
 **Vulnerability:** Several areas in `script.js` (specifically `renderNotes`, `openNote`, `renderSimilarNotes`) failed to sanitize user-generated data (e.g. `note.title`, `note.category`, `note.subject`, `note.type`) using the `escapeHtml` function before interpolating them into HTML structures via template literals.
 **Learning:** This repo relies heavily on assigning template literals to `innerHTML` dynamically for performance and templating simplicity. However, string interpolation does not automatically escape HTML, which led to a Cross-Site Scripting (XSS) vulnerability when user-controlled database fields were accessed and injected directly into the DOM.
