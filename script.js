@@ -1797,6 +1797,9 @@ async function loadTodayView() {
 
                 const reviewedTodayCount = studiedTodayIds.size;
 
+                // ⚡ Bolt: Compute from local set instead of redundant network call to getGlobalCompletedTodayCount()
+                const reviewedTodayCount = studiedTodayIds.size;
+
                 // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
                 const stillDue = pertinentCards.filter(c => {
                     const interval = Number(c.interval_days || 0);

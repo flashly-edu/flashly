@@ -1,3 +1,6 @@
+## 2024-05-24 - Eliminate Redundant Database Query for Today's Studied Cards
+**Learning:** Found a specific anti-pattern where a dedicated function (`getGlobalCompletedTodayCount()`) was fetching data (the count of unique studied cards today) from the database, while immediately below it, the codebase was fetching the exact same data again (`logsToday`) to compute a set of IDs (`studiedTodayIds`). This caused two sequential database queries where one was sufficient.
+**Action:** When a function computes a count from a database query, ensure the same data isn't being fetched nearby for other purposes. In `loadTodayView`, compute `reviewedTodayCount` from `studiedTodayIds.size` instead of making a separate call.
 ## 2024-05-24 - Redundant DB queries for global daily review limit
 **Learning:** Flashcard study sessions enforce a global daily review limit by counting unique `card_id` entries in the `study_logs` table for the current date. This count was being queried via `getGlobalCompletedTodayCount()` while the exact same data was fetched subsequently via `logsToday` to create a `studiedTodayIds` Set.
 **Action:** Compute the completed today count locally from the size of the `studiedTodayIds` Set derived from the `logsToday` fetch result, eliminating the redundant network query and speeding up `loadTodayView()` and `startStudySession()`.
