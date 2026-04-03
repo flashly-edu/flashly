@@ -6136,7 +6136,9 @@ async function loadStats() {
     // Daily Average (30d)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentLogs = logs ? logs.filter(l => new Date(l.review_time) >= thirtyDaysAgo) : [];
+    // ⚡ Bolt: Use string comparison for ISO 8601 instead of allocating new Date objects inside loops
+    const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+    const recentLogs = logs ? logs.filter(l => l.review_time >= thirtyDaysAgoISO) : [];
     const dailyAvg = (recentLogs.length / 30).toFixed(1);
 
     // Total Study Time (Improved Estimation)
