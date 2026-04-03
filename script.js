@@ -1782,6 +1782,9 @@ async function loadTodayView() {
 
                 const reviewedTodayCount = studiedTodayIds.size;
 
+                // Use studiedTodayIds size instead of an additional network request
+                const reviewedTodayCount = studiedTodayIds.size;
+
                 // 2. Identify candidates for study (Not reviewed today, or Learning cards due again)
                 const stillDue = pertinentCards.filter(c => {
                     const interval = Number(c.interval_days || 0);
