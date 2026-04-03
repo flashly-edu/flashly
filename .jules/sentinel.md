@@ -14,3 +14,7 @@
 **Vulnerability:** User-generated content (like note titles, subjects, URLs, categories, etc.) was directly inserted into the DOM using template literals via `innerHTML` and `textContent` assignments in `script.js` without sanitization.
 **Learning:** Even though an `escapeHtml()` function exists in the codebase, it was inconsistently applied, particularly in the components related to rendering "Notes" and "Similar Notes" and extracting properties like `note.title`, `note.url`, etc.
 **Prevention:** Always consistently use `escapeHtml()` for ALL dynamic data interpolation within template literals that are assigned to `innerHTML` or rendered as text/attributes to prevent XSS. Regular audits of `innerHTML` assignments using regex are useful.
+## 2026-04-03 - [Unescaped Input in HTML Template Literal]
+**Vulnerability:** Found `deck.subjects?.name` being directly injected into `innerHTML` without `escapeHtml()` sanitization.
+**Learning:** Nested optional chaining properties are easily overlooked when auditing for XSS vulnerabilities in template literals.
+**Prevention:** Consistently apply `escapeHtml()` to all dynamic data, even nested or optional properties, before injecting into the DOM.

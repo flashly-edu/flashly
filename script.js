@@ -2313,7 +2313,7 @@ async function loadTodayMyDecks() {
                 <span class="badge ${stats.count > 0 ? 'badge-due' : 'badge-new'}">${stats.count} Pending</span>
             </div>
             <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
-            <p class="text-sm text-dim mb-4">${deck.subjects?.name || 'Flashcards'}</p>
+            <p class="text-sm text-dim mb-4">${escapeHtml(deck.subjects?.name || 'Flashcards')}</p>
             <button class="btn btn-primary btn-sm w-full">Study Now</button>
         `;
         div.onclick = () => {
