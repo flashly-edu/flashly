@@ -10207,7 +10207,7 @@ async function openUserProfile(userId) {
                 </div>
                 
                 <div style="flex: 1;">
-                    <h2 style="margin: 0; font-size: 2.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1;">${profile.username}</h2>
+                    <h2 style="margin: 0; font-size: 2.25rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.1;">${escapeHtml(profile.username || 'User')}</h2>
                     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1rem;">
                         <span class="lb-league-tag ${info.cssClass}" style="padding: 4px 14px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 99px;">${info.name} League</span>
                         <span style="font-size: 1.1rem; font-weight: 700; color: var(--primary);">${(profile.xp || 0).toLocaleString()} <span style="font-size: 0.85rem; font-weight: 600; opacity: 0.7; color: var(--text-tertiary);">XP</span></span>
@@ -10276,7 +10276,7 @@ async function openUserProfile(userId) {
                             <div style="font-size: 3.5rem;">${info.icon}</div>
                             ${progressHtml}
                             <p style="font-size: 0.85rem; color: var(--text-tertiary); text-align: center; line-height: 1.5;">
-                                ${profile.username} is currently in the <strong>${info.name} League</strong>.
+                                ${escapeHtml(profile.username || 'User')} is currently in the <strong>${info.name} League</strong>.
                             </p>
                         </div>
                     </section>
@@ -10284,7 +10284,7 @@ async function openUserProfile(userId) {
                     <button class="btn btn-outline" onclick="closeUserProfile()" style="width: 100%; padding: 12px; border-radius: var(--radius); font-weight: 700; font-size: 0.9rem;">Return to App</button>
                     
                     <p style="text-align: center; font-size: 0.8rem; color: var(--text-tertiary); margin-top: 1rem;">
-                        This is a public profile view for ${profile.username}.
+                        This is a public profile view for ${escapeHtml(profile.username || 'User')}.
                     </p>
                 </div>
             </div>

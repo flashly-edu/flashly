@@ -1,3 +1,7 @@
+## 2024-11-20 - DOM XSS in Note and Profile Views
+**Vulnerability:** Several dynamically rendered UI components (like `note-list`, `note-detail`, `similar-notes`, and `user-profile`) injected user-controlled fields (`note.title`, `note.category`, `note.type`, `note.subject`, `note.url`, and `profile.username`) into `innerHTML` strings without proper sanitization. This allows for Cross-Site Scripting (XSS).
+**Learning:** Even though an `escapeHtml()` function exists in the codebase, it is easy to forget to use it when constructing template literals for DOM insertion, especially for nested or less common models like Notes.
+**Prevention:** Always wrap variables representing user input with `escapeHtml()` when interpolating them into HTML strings that will be passed to `innerHTML`.
 ## 2025-04-02 - Unescaped XSS inside AI Note Summary
 **Vulnerability:** XSS vulnerability exists where AI-generated content retrieved via Supabase Edge Function is directly placed into innerHTML inside script.js without using `escapeHtml()`.
 **Learning:** XSS vulnerability is possible even for 'trusted' content outputs such as LLM predictions. An LLM may summarize or quote malicious user text inputs such as PDF contents.
