@@ -1770,6 +1770,7 @@ async function loadTodayView() {
                 });
 
                 // Get the set of IDs studied today from study_logs to accurately filter stillDue
+                // ⚡ Bolt: Cache logsToday early to calculate reviewedTodayCount without extra DB calls
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const { data: logsToday } = await sb.from('study_logs')
@@ -1777,6 +1778,7 @@ async function loadTodayView() {
                     .eq('user_id', state.user.id)
                     .gte('review_time', today.toISOString());
                 const studiedTodayIds = new Set(logsToday ? logsToday.map(l => l.card_id) : []);
+                const reviewedTodayCount = studiedTodayIds.size;
 
                 const reviewedTodayCount = studiedTodayIds.size;
 
