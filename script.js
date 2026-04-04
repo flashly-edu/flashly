@@ -6146,8 +6146,9 @@ async function loadStats() {
     let totalTimeMs = 0;
     if (logs && logs.length > 1) {
         for (let i = 0; i < logs.length - 1; i++) {
-            const current = new Date(logs[i].review_time);
-            const next = new Date(logs[i + 1].review_time);
+            // ⚡ Bolt: Use Date.parse() instead of new Date() to avoid object allocation in tight loop
+            const current = Date.parse(logs[i].review_time);
+            const next = Date.parse(logs[i + 1].review_time);
             const diff = Math.abs(current - next);
             if (diff < 5 * 60 * 1000) {
                 totalTimeMs += diff;
