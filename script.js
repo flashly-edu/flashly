@@ -2313,7 +2313,7 @@ async function loadTodayMyDecks() {
                 <span class="badge ${stats.count > 0 ? 'badge-due' : 'badge-new'}">${stats.count} Pending</span>
             </div>
             <h4 class="font-semibold text-lg mb-1">${escapeHtml(deck.title)}</h4>
-            <p class="text-sm text-dim mb-4">${deck.subjects?.name || 'Flashcards'}</p>
+            <p class="text-sm text-dim mb-4">${escapeHtml(deck.subjects?.name || 'Flashcards')}</p>
             <button class="btn btn-primary btn-sm w-full">Study Now</button>
         `;
         div.onclick = () => {
@@ -5113,7 +5113,7 @@ async function renderSequenceMiniLeaderboard(container, xp, rank) {
         <div class="leaderboard-row ${p.id === state.user.id ? 'is-user' : ''}" id="${p.id === state.user.id ? 'seq-user-row' : ''}" style="grid-template-columns: 60px 1fr 80px; padding: 0.75rem 1rem;">
             <div class="rank-col seq-rank-val" style="font-size: 0.9rem;">#${p.rank || '?'}</div>
             <div class="user-col" style="gap: 0.75rem;">
-                <div class="user-avatar-lb" style="width: 28px; height: 28px; font-size: 0.65rem;">${(p.username || 'U').charAt(0).toUpperCase()}</div>
+                <div class="user-avatar-lb" style="width: 28px; height: 28px; font-size: 0.65rem;">${escapeHtml((p.username || 'U').charAt(0).toUpperCase())}</div>
                 <div class="text-sm font-semibold">${escapeHtml(p.username)}</div>
             </div>
             <div class="xp-col seq-xp-val" style="font-size: 0.85rem;">${p.xp}</div>
@@ -5694,7 +5694,7 @@ function renderGroupLeaderboard() {
         row.innerHTML = `
             <div class="rank-col"><div class="rank-badge">${rank}</div></div>
             <div class="member-col" style="display: flex; align-items: center; gap: 0.75rem;">
-                <div class="user-avatar-sm">${name.charAt(0).toUpperCase()}</div>
+                <div class="user-avatar-sm">${escapeHtml(name.charAt(0).toUpperCase())}</div>
                 <span style="font-weight: 500;">${escapeHtml(name)} ${m.user_id === state.user.id ? '<span class="text-xs opacity-50">(You)</span>' : ''}</span>
             </div>
             <div class="stat-col" style="text-align: center;">
@@ -5817,7 +5817,7 @@ function renderGroupMembers() {
         li.innerHTML = `
             <div class="member-profile">
                 <div class="user-avatar-md">
-                    ${name.charAt(0).toUpperCase()}
+                    ${escapeHtml(name.charAt(0).toUpperCase())}
                 </div>
                 <div class="member-info">
                     <span class="member-name">${escapeHtml(name)} ${m.user_id === state.user.id ? '<span class="text-dim">(You)</span>' : ''}</span>
@@ -6608,7 +6608,7 @@ function renderCommunityDecks() {
                 
                 <div class="community-card-footer">
                     <div class="creator-mini-profile" onclick="event.stopPropagation(); window.openUserProfile('${deck.user_id || deck.profiles?.id}')" style="cursor:pointer;" title="View Profile">
-                        <div class="creator-avatar">${(deck.profiles?.username || 'U').charAt(0).toUpperCase()}</div>
+                        <div class="creator-avatar">${escapeHtml((deck.profiles?.username || 'U').charAt(0).toUpperCase())}</div>
                         <div class="creator-info">
                             <span class="creator-label">Shared by</span>
                             <span class="creator-name">${escapeHtml(deck.profiles?.username || 'user')}</span>
@@ -6712,7 +6712,7 @@ async function executeCommunitySearch() {
             const uid = userDecks.length > 0 ? (userDecks[0].user_id || userDecks[0].profiles?.id) : '';
             return `
                     <div class="user-chip hover-card" onclick="window.openUserProfile('${uid}')" title="View Profile">
-                        <div class="user-avatar-xs">${u.charAt(0).toUpperCase()}</div>
+                        <div class="user-avatar-xs">${escapeHtml(u.charAt(0).toUpperCase())}</div>
                         <span class="font-bold text-sm">${escapeHtml(u)}</span>
                     </div>
                 `
@@ -6772,7 +6772,7 @@ async function executeCommunitySearch() {
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
                         <div style="display: flex; align-items: center; gap: 1.25rem; flex: 1;">
                             <div style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;" onclick="event.stopPropagation(); window.openUserProfile('${deck.user_id || deck.profiles?.id}')" title="View Profile">
-                                <div class="creator-avatar" style="width:28px; height:28px; font-size:0.75rem">${(deck.profiles?.username || 'U').charAt(0).toUpperCase()}</div>
+                                <div class="creator-avatar" style="width:28px; height:28px; font-size:0.75rem">${escapeHtml((deck.profiles?.username || 'U').charAt(0).toUpperCase())}</div>
                                 <div style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.8rem; color: var(--text-secondary);">
                                     <span>by</span>
                                     <span style="font-weight: 600; color: var(--text-primary);">${escapeHtml(deck.profiles?.username || 'user')}</span>
@@ -9713,7 +9713,7 @@ function renderLeaderboard() {
                 const pLeague = getLeagueInfo(player.xp);
                 return `
                 <div class="lb-podium-player" onclick="showUserComparison('${player.id}', '${escapeHtml(player.username)}', ${player.xp}, ${player.rank})">
-                    <div class="lb-podium-avatar" style="background: ${pLeague.color};">${player.username.charAt(0).toUpperCase()}</div>
+                    <div class="lb-podium-avatar" style="background: ${pLeague.color};">${escapeHtml(player.username.charAt(0).toUpperCase())}</div>
                     <div class="lb-podium-pedestal">
                         <div class="lb-podium-rank">#${player.rank}</div>
                         <div class="lb-podium-name">${escapeHtml(player.username.split(' ')[0])}</div>
@@ -9729,7 +9729,7 @@ function renderLeaderboard() {
                 const pLeague = getLeagueInfo(player.xp);
                 return `
                 <div class="lb-podium-player" onclick="showUserComparison('${player.id}', '${escapeHtml(player.username)}', ${player.xp}, ${player.rank})">
-                    <div class="lb-podium-avatar" style="background: ${pLeague.color};">${player.username.charAt(0).toUpperCase()}</div>
+                    <div class="lb-podium-avatar" style="background: ${pLeague.color};">${escapeHtml(player.username.charAt(0).toUpperCase())}</div>
                     <div class="lb-podium-pedestal">
                         <div class="lb-podium-rank">#${player.rank}</div>
                         <div class="lb-podium-name">${escapeHtml(player.username.split(' ')[0])}</div>
@@ -9754,7 +9754,7 @@ function renderLeaderboard() {
         row.innerHTML = `
             <div class="rank-col">${player.rank}</div>
             <div class="user-col">
-                <div class="user-avatar-lb" style="background: ${playerLeague.color};">${player.username.charAt(0).toUpperCase()}</div>
+                <div class="user-avatar-lb" style="background: ${playerLeague.color};">${escapeHtml(player.username.charAt(0).toUpperCase())}</div>
                 <div class="user-name">
                     <span class="font-bold">${escapeHtml(player.username)}</span>
                     <span class="lb-league-tag ${playerLeague.cssClass}">${playerLeague.icon} ${playerLeague.name}</span>
@@ -9777,7 +9777,7 @@ function renderLeaderboard() {
         sticky.innerHTML = `
             <div class="rank-col">${state.leaderboard.userRank}</div>
             <div class="user-col">
-                <div class="user-avatar-lb" style="background: ${userLeagueInfo.color}; color: white;">${(state.user.username || 'U').charAt(0).toUpperCase()}</div>
+                <div class="user-avatar-lb" style="background: ${userLeagueInfo.color}; color: white;">${escapeHtml((state.user.username || 'U').charAt(0).toUpperCase())}</div>
                 <div class="user-name">
                     <span class="font-bold">${escapeHtml(state.user.username || 'You')}</span>
                     <span class="lb-league-tag ${userLeagueInfo.cssClass}">${userLeagueInfo.icon} ${userLeagueInfo.name}</span>
@@ -9818,14 +9818,14 @@ function showUserComparison(playerId, playerName, playerXP, playerRank) {
     // VS Section
     vsSection.innerHTML = `
         <div class="comparison-player">
-            <div class="comparison-avatar" style="background: ${userLeague.color};">${userName.charAt(0).toUpperCase()}</div>
+            <div class="comparison-avatar" style="background: ${userLeague.color};">${escapeHtml(userName.charAt(0).toUpperCase())}</div>
             <div class="comparison-player-name">${escapeHtml(userName)}</div>
             <div class="comparison-player-league" style="color: ${userLeague.color};">${userLeague.icon} ${userLeague.name}</div>
         </div>
         <div class="comparison-vs-badge">VS</div>
         <div class="comparison-player">
             <div class="comparison-avatar" style="background: ${otherLeague.color}; position: relative;">
-                ${playerName.charAt(0).toUpperCase()}
+                ${escapeHtml(playerName.charAt(0).toUpperCase())}
                 <button onclick="event.stopPropagation(); window.openUserProfile('${playerId}')" style="position: absolute; bottom: -5px; right: -5px; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface); cursor: pointer;" title="View Profile">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" style="width: 14px; height: 14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
                 </button>
@@ -9999,8 +9999,8 @@ async function loadLastStudied(deckId) {
         const info = getLeagueInfo(u.xp);
         const letter = u.username ? u.username.charAt(0).toUpperCase() : '?';
         avatarsHtml += `
-            <div onclick="window.openUserProfile('${u.id}')" style="width: 28px; height: 28px; border-radius: 50%; background: ${info.color}; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; border: 2px solid var(--surface); margin-left: ${index > 0 ? '-10px' : '0'}; cursor: pointer; z-index: ${3 - index}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" title="${u.username}">
-                ${letter}
+            <div onclick="window.openUserProfile('${u.id}')" style="width: 28px; height: 28px; border-radius: 50%; background: ${info.color}; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; border: 2px solid var(--surface); margin-left: ${index > 0 ? '-10px' : '0'}; cursor: pointer; z-index: ${3 - index}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" title="${escapeHtml(u.username)}">
+                ${escapeHtml(letter)}
             </div>
         `;
     });
@@ -10174,7 +10174,7 @@ async function openUserProfile(userId) {
             <!-- Header Section -->
             <div style="display: flex; align-items: flex-end; gap: 2.5rem; margin-bottom: 2.5rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border);">
                 <div style="width: 110px; height: 110px; border-radius: 50%; background: ${info.color}; color: white; display: flex; align-items: center; justify-content: center; font-size: 3rem; font-weight: 900; box-shadow: 0 15px 30px -8px ${info.color}40; border: 5px solid var(--surface); position: relative; flex-shrink: 0;">
-                    ${letter}
+                    ${escapeHtml(letter)}
                     <div style="position: absolute; bottom: 0; right: 0; background: var(--surface); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 3px solid var(--border); box-shadow: var(--shadow-sm);">
                         ${info.icon}
                     </div>
